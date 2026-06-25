@@ -1,0 +1,2404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Mini Minecraft</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100%; overflow: hidden; background: #9fd4ff; font-family: monospace; color: #fff; }
+  canvas { display: block; }
+
+  #crosshair {
+    position: fixed; top: 50%; left: 50%; width: 20px; height: 20px;
+    transform: translate(-50%, -50%); pointer-events: none; z-index: 10;
+  }
+  #crosshair::before, #crosshair::after { content: ""; position: absolute; background: rgba(255,255,255,0.85); }
+  #crosshair::before { left: 9px; top: 0; width: 2px; height: 20px; }
+  #crosshair::after { top: 9px; left: 0; height: 2px; width: 20px; }
+
+  #hud { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 5px; z-index: 10; }
+  .slot {
+    width: 50px; height: 50px; border: 3px solid rgba(0,0,0,0.4);
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    font-size: 10px; text-align: center; line-height: 1.15; text-shadow: 1px 1px 1px #000; position: relative;
+  }
+  .slot .num { position: absolute; top: 1px; left: 3px; font-size: 9px; opacity: 0.85; }
+  .slot .qty { position: absolute; bottom: 1px; right: 3px; font-size: 12px; font-weight: bold; }
+  .slot.active { border-color: #fff; box-shadow: 0 0 0 1px #000; }
+
+  #hearts {
+    position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%); z-index: 10;
+    font-size: 22px; letter-spacing: 3px; display: none; text-shadow: 1px 1px 2px #000;
+  }
+  #hunger {
+    position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%); z-index: 10;
+    font-size: 18px; letter-spacing: 3px; display: none; text-shadow: 1px 1px 2px #000;
+  }
+
+  #info {
+    position: fixed; top: 12px; left: 12px; z-index: 10; font-size: 12px; line-height: 1.5;
+    background: rgba(0,0,0,0.4); padding: 5px 9px; border-radius: 3px; white-space: pre;
+  }
+
+  #hurt {
+    position: fixed; inset: 0; z-index: 9; pointer-events: none; opacity: 0;
+    background: radial-gradient(circle, rgba(150,0,0,0) 35%, rgba(150,0,0,0.65) 100%);
+  }
+  #prompt {
+    position: fixed; bottom: 110px; left: 50%; transform: translateX(-50%); z-index: 10;
+    font-size: 14px; background: rgba(0,0,0,0.55); padding: 6px 12px; border-radius: 4px; display: none;
+  }
+
+  #overlay, #menu, #death {
+    position: fixed; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; background: rgba(0,0,0,0.6); text-align: center;
+  }
+  #overlay, #menu { z-index: 20; }
+  #death { z-index: 25; background: rgba(60,0,0,0.6); }
+  #death h1 { font-size: 46px; color: #d33; letter-spacing: 3px; }
+  #death p { margin-top: 10px; opacity: 0.85; }
+  #overlay { cursor: pointer; }
+  #overlay h1 { font-size: 34px; margin-bottom: 16px; letter-spacing: 3px; }
+  #overlay p { font-size: 13px; line-height: 1.9; opacity: 0.9; }
+  .hidden { display: none !important; }
+
+  #menu h2 { font-size: 22px; margin-bottom: 14px; letter-spacing: 2px; }
+  #menuGrid { display: grid; grid-template-columns: repeat(8, 56px); gap: 8px; }
+  .tile {
+    width: 56px; height: 56px; border: 2px solid rgba(255,255,255,0.25); cursor: pointer;
+    display: flex; align-items: flex-end; justify-content: center; padding-bottom: 3px;
+    font-size: 9px; text-shadow: 1px 1px 1px #000;
+  }
+  .tile:hover { border-color: #fff; }
+  #menu .hint { margin-top: 14px; font-size: 12px; opacity: 0.8; }
+
+  #join {
+    position: fixed; inset: 0; z-index: 35; display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,0.68); text-align: center;
+  }
+  #joinBox {
+    width: min(360px, calc(100vw - 28px)); background: rgba(18,22,28,0.92);
+    border: 2px solid rgba(255,255,255,0.22); padding: 18px; border-radius: 6px;
+  }
+  #joinBox h2 { font-size: 20px; margin-bottom: 12px; letter-spacing: 1px; }
+  #joinBox input {
+    width: 100%; height: 38px; margin: 6px 0 12px; padding: 0 10px;
+    border: 2px solid rgba(255,255,255,0.3); background: #10151c; color: #fff;
+    font: 15px monospace; outline: none;
+  }
+  #joinBox button, #teacherPanel button {
+    border: 2px solid rgba(255,255,255,0.25); background: #2d6cdf; color: #fff;
+    font: 12px monospace; padding: 8px 10px; cursor: pointer;
+  }
+  #joinBox button:hover, #teacherPanel button:hover { border-color: #fff; }
+  #joinMsg { min-height: 18px; margin-top: 10px; font-size: 12px; color: #ffd36b; }
+
+  #teacherPanel {
+    position: fixed; top: 12px; right: 12px; z-index: 12; width: 230px;
+    background: rgba(0,0,0,0.48); padding: 9px; border-radius: 4px; font-size: 12px;
+  }
+  #teacherPanel h3 { font-size: 13px; margin-bottom: 8px; }
+  #studentList { margin: 8px 0; line-height: 1.5; max-height: 160px; overflow: auto; }
+  .studentRow { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 3px 0; }
+  .studentRow button { flex: 0 0 auto; padding: 3px 7px; }
+  #teacherPanel .actions { display: flex; gap: 6px; }
+  #teacherPanel button { flex: 1; padding: 6px 4px; background: rgba(45,108,223,0.85); }
+  #mpStatus {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 12;
+    background: rgba(0,0,0,0.42); padding: 5px 9px; border-radius: 3px; font-size: 12px;
+  }
+</style>
+</head>
+<body>
+<div id="crosshair"></div>
+<div id="hud"></div>
+<div id="hearts"></div>
+<div id="hunger"></div>
+<div id="info"></div>
+<div id="prompt"></div>
+<div id="hurt"></div>
+
+<div id="overlay">
+  <h1>MINI MINECRAFT</h1>
+  <p>
+    Click to play<br><br>
+    WASD — move &nbsp;·&nbsp; Mouse <b>or</b> Arrow keys — look &nbsp;·&nbsp; Tab — trackpad look<br>
+    Space — jump &nbsp;·&nbsp; F — fly (creative only) &nbsp;·&nbsp; G — toggle Creative / Survival<br>
+    Left click — break / attack &nbsp;·&nbsp; Right click — place / eat &nbsp;·&nbsp; 1–9 / scroll — hotbar &nbsp;·&nbsp; E — menu<br>
+    Survival: mobs fight back, hunger drains, food heals, Ctrl sprints, water slows falls &nbsp;·&nbsp; Esc — release mouse
+  </p>
+</div>
+
+<div id="menu" class="hidden">
+  <h2>CREATIVE INVENTORY</h2>
+  <div id="menuGrid"></div>
+  <div class="hint">Click an item to put it in your hand · E or Esc to close</div>
+</div>
+
+<div id="death" class="hidden"><h1>YOU DIED</h1><p>respawning…</p></div>
+
+<div id="join" class="hidden">
+  <form id="joinBox">
+    <h2>JOIN CLASS WORLD</h2>
+    <input id="studentName" maxlength="18" autocomplete="name" placeholder="Your name" />
+    <button type="submit">Join</button>
+    <div id="joinMsg"></div>
+  </form>
+</div>
+
+<div id="teacherPanel" class="hidden">
+  <h3>CLASS WORLD</h3>
+  <div id="studentList">No students yet</div>
+  <div class="actions">
+    <button id="teleportAll" type="button">Teleport</button>
+    <button id="resetWorld" type="button">Reset</button>
+  </div>
+</div>
+<div id="mpStatus" class="hidden"></div>
+
+<script type="importmap">
+{ "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+const TAU = Math.PI * 2;
+const urlParams = new URLSearchParams(location.search);
+const MULTIPLAYER = location.protocol.startsWith('http') && !urlParams.has('single') && !location.search.includes('norender');
+const IS_TEACHER = MULTIPLAYER && urlParams.has('teacher');
+const LOCAL_COLOR = '#' + Math.floor(0x5577aa + Math.random() * 0x777755).toString(16).slice(0, 6).padStart(6, '0');
+
+// ============================================================ scene
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9fd4ff);
+scene.fog = new THREE.Fog(0x9fd4ff, 55, 100);   // far ≈ RADIUS*CHUNK*0.9 so the streaming edge is hidden
+
+const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.autoClear = false;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.domElement.tabIndex = 0;
+renderer.domElement.style.touchAction = 'none';
+document.body.appendChild(renderer.domElement);
+
+const hemi = new THREE.HemisphereLight(0xffffff, 0x556633, 0.85);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 0.8);
+sun.position.set(50, 100, 30);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+const SHADOW_SPAN = 70;   // ~ covers RADIUS*CHUNK area around the player
+sun.shadow.camera.left = -SHADOW_SPAN; sun.shadow.camera.right = SHADOW_SPAN;
+sun.shadow.camera.top = SHADOW_SPAN;   sun.shadow.camera.bottom = -SHADOW_SPAN;
+sun.shadow.camera.near = 1; sun.shadow.camera.far = 320;
+sun.shadow.bias = -0.0006;
+scene.add(sun);
+scene.add(sun.target);
+const SUN_OFFSET = new THREE.Vector3(50, 100, 30);   // sun stays at this offset above the player
+const sunOrbitOffset = new THREE.Vector3().copy(SUN_OFFSET);
+const playerLight = new THREE.PointLight(0xffb45a, 0, 16, 2);
+scene.add(playerLight);
+
+// ---- sky, moon, stars (space ambience kicks in as you climb) ----
+const skyDay = new THREE.Color(0x9fd4ff);
+const skyDusk = new THREE.Color(0xf2a066);
+const skyNight = new THREE.Color(0x11162b);
+const skySpace = new THREE.Color(0x05060f);
+const skyNow = new THREE.Color();
+let gEff = 28;                         // effective gravity (drops with altitude → moon feel)
+let daylight = 1;
+let isNight = false;
+
+// Floating worlds you can reach by flying up in Creative. Each is a hollow voxel CUBE in the
+// sky (center cx,cy,cz, half-extent H, shell `shell` blocks thick). The cube has
+// its own "Mario Galaxy" gravity: while you're near it, down points toward the
+// face you stand on, so you can walk all six sides. Aliens roam the faces too.
+const PLANETS = [
+  { name: 'Moon',    plat: 'moonrock', cx: 0,    cy: 200, cz: 0,    H: 22, shell: 5, aliens: 8, terrainSeed: 100 },
+  { name: 'Mars',    plat: 'brick',    cx: 180,  cy: 160, cz: 70,   H: 13, shell: 4, aliens: 6, terrainSeed: 200 },
+  { name: 'Frost',   plat: 'snow',     cx: -180, cy: 175, cz: -80,  H: 14, shell: 4, aliens: 5, terrainSeed: 300 },
+  { name: 'Inferno', plat: 'obsidian', cx: 90,   cy: 200, cz: -190, H: 12, shell: 4, aliens: 6, terrainSeed: 400 },
+  { name: 'Verdis',  plat: 'grass',    cx: -100, cy: 150, cz: 190,  H: 16, shell: 4, aliens: 5, terrainSeed: 500 },
+];
+const PLANET_INFLUENCE = 9;   // how far past a cube face its gravity still grabs you
+const PLANET_GRAVITY = 16;    // gravity strength while standing on a cube (controllable, slightly low-g)
+
+const stars = (() => {
+  const n = 1400, arr = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const u = Math.random() * 2 - 1, th = Math.random() * Math.PI * 2, r = 380, s = Math.sqrt(1 - u * u);
+    arr[i * 3] = r * s * Math.cos(th); arr[i * 3 + 1] = Math.abs(u) * r + 30; arr[i * 3 + 2] = r * s * Math.sin(th);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+  const p = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xffffff, size: 1.4, sizeAttenuation: false, transparent: true, opacity: 0, fog: false }));
+  p.frustumCulled = false;
+  return p;
+})();
+scene.add(stars);
+
+const skyMoon = (() => {
+  const group = new THREE.Group();
+  const moonMat = new THREE.MeshBasicMaterial({ color: 0xd8d8d0, transparent: true, opacity: 0.55, fog: false });
+  const craterMat = new THREE.MeshBasicMaterial({ color: 0x8f908a, transparent: true, opacity: 0.45, fog: false, side: THREE.DoubleSide });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(18, 32, 16), moonMat);
+  group.add(body);
+  const craters = [
+    [-5.5, 5.0, 2.7], [4.7, 4.3, 2.0], [1.4, -2.2, 3.4], [-7.0, -4.0, 1.7],
+    [6.6, -5.1, 2.4], [-1.2, 7.6, 1.3], [8.0, 0.5, 1.5], [-3.0, -7.3, 1.9],
+  ];
+  for (const [x, y, r] of craters) {
+    const c = new THREE.Mesh(new THREE.CircleGeometry(r, 16), craterMat);
+    c.position.set(x, y, -18.04);
+    group.add(c);
+  }
+  group.frustumCulled = false;
+  group.userData.moonMat = moonMat;
+  group.userData.craterMat = craterMat;
+  return group;
+})();
+scene.add(skyMoon);
+
+// ============================================================ block + item types
+const BLOCKS = {
+  grass:       { name: 'Grass',   color: 0x5fb84e, pattern: 'grass' },
+  dirt:        { name: 'Dirt',    color: 0x8a5a3b, pattern: 'dirt' },
+  stone:       { name: 'Stone',   color: 0x8d8d8d, pattern: 'stone' },
+  cobblestone: { name: 'Cobble',  color: 0x6f6f6f, pattern: 'cobble' },
+  sand:        { name: 'Sand',    color: 0xe6d9a3, pattern: 'sand' },
+  gravel:      { name: 'Gravel',  color: 0x9a948c, pattern: 'gravel' },
+  log:         { name: 'Log',     color: 0x6b4a2b, pattern: 'log' },
+  planks:      { name: 'Planks',  color: 0xb5894e, pattern: 'planks' },
+  leaves:      { name: 'Leaves',  color: 0x46a23a, alpha: 0.92, pattern: 'leaves' },
+  glass:       { name: 'Glass',   color: 0xcfe8ff, alpha: 0.35, pattern: 'glass' },
+  brick:       { name: 'Brick',   color: 0xa83b2a, pattern: 'brick' },
+  snow:        { name: 'Snow',    color: 0xffffff, pattern: 'snow' },
+  water:       { name: 'Water',   color: 0x3a72d6, alpha: 0.6, pattern: 'water' },
+  bedrock:     { name: 'Bedrock', color: 0x2b2b2b, pattern: 'bedrock' },
+  gold:        { name: 'Gold',    color: 0xf2c530, pattern: 'gold' },
+  coal_ore:    { name: 'Coal Ore',color: 0x707070, pattern: 'coal_ore' },
+  iron_ore:    { name: 'Iron Ore',color: 0x9a8a78, pattern: 'iron_ore' },
+  diamond_ore: { name: 'Diamond', color: 0x76e6e6, pattern: 'diamond_ore' },
+  obsidian:    { name: 'Obsidian',color: 0x2c2140, pattern: 'obsidian' },
+  moonrock:    { name: 'Moonrock',color: 0xc8c8d0, pattern: 'moonrock' },
+  cheese:      { name: 'Cheese',  color: 0xf4cf45, pattern: 'cheese' },
+  crafting:    { name: 'Crafting',color: 0x8b5a2b, pattern: 'crafting' },
+  furnace:     { name: 'Furnace', color: 0x686868, pattern: 'furnace' },
+  torch:       { name: 'Torch',   color: 0xffb33a, alpha: 0.92, pattern: 'torch' },
+  cactus:      { name: 'Cactus',  color: 0x2f8f47, pattern: 'cactus' },
+  pumpkin:     { name: 'Pumpkin', color: 0xd97820, pattern: 'pumpkin' },
+};
+const TYPES = Object.keys(BLOCKS);
+const TOOLS = {
+  sword: { name: 'Sword', color: 0xb9c4cc },
+  bow:   { name: 'Bow',   color: 0x9a6b32 },
+  gun:   { name: 'Gun',   color: 0x33373c },
+};
+const FOODS = {
+  cheese_wedge: { name: 'Cheese', color: 0xf4cf45, hunger: 5, heal: 2 },
+};
+const isBlock  = (id) => id in BLOCKS;
+const isOpaque = (t)  => t != null && isBlock(t) && BLOCKS[t].alpha == null;
+const isSolid  = (t)  => t != null && isBlock(t) && t !== 'water' && t !== 'torch';
+const isFood   = (id) => id in FOODS;
+const itemDef  = (id) => BLOCKS[id] || TOOLS[id] || FOODS[id];
+const swatch   = (id) => '#' + itemDef(id).color.toString(16).padStart(6, '0');
+const itemName = (id) => itemDef(id).name;
+
+function makeTexture(hex, pattern) {
+  const s = 16, c = document.createElement('canvas');
+  c.width = c.height = s;
+  const ctx = c.getContext('2d');
+  const col = new THREE.Color(hex);
+  const rnd = Math.random;
+  for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
+    let l = 1 + (rnd() - 0.5) * 0.18;
+    switch (pattern) {
+      case 'planks':
+        if (y % 5 === 0) l *= 0.7;          // plank seams
+        else if (x === 7) l *= 0.82;        // centre joint
+        break;
+      case 'log':
+        if (x === 0 || x === s - 1) l *= 0.6;     // dark bark edges
+        else if (x % 4 === 1) l *= 0.84;          // vertical grain
+        break;
+      case 'brick': {
+        const off = (Math.floor(y / 4) % 2) ? 4 : 0;
+        if (y % 4 === 0 || (x + off) % 8 === 0) l *= 0.55;
+        break;
+      }
+      case 'grass':
+        l = 1 + (rnd() - 0.5) * 0.12;
+        if (rnd() > 0.9) l *= 1.18;         // bright blades
+        else if (rnd() > 0.9) l *= 0.82;
+        break;
+      case 'dirt':
+        l = 1 + (rnd() - 0.5) * 0.2;
+        if (rnd() > 0.92) l *= 0.76;        // dark clumps
+        break;
+      case 'stone':
+        l = 1 + (rnd() - 0.5) * 0.1;
+        if (rnd() > 0.95) l *= 0.7;         // dark flecks
+        break;
+      case 'cobble':
+        l = 1 + (rnd() - 0.5) * 0.22;
+        if (x % 8 === 0 || y % 8 === 0 || (x + y) % 16 === 0) l *= 0.5;  // mortar grid
+        break;
+      case 'sand':
+        l = 1 + (rnd() - 0.5) * 0.1;
+        if (rnd() > 0.88) l *= 1.08;        // glinting grains
+        break;
+      case 'gravel': {
+        const cell = (Math.floor(x / 2) * 31 + Math.floor(y / 2) * 17) % 5;
+        l = 0.82 + cell * 0.09 + (rnd() - 0.5) * 0.12;   // pebbles
+        break;
+      }
+      case 'leaves': {
+        const cell = (Math.floor(x / 3) * 13 + Math.floor(y / 3) * 7) % 4;
+        l = 0.82 + cell * 0.09 + (rnd() - 0.5) * 0.18;   // clumps
+        break;
+      }
+      case 'glass':
+        l = 1 + (rnd() - 0.5) * 0.04;
+        if (x === 0 || y === 0 || x === s - 1 || y === s - 1) l *= 0.7;  // frame
+        else if (x === y || x === y - 1) l *= 1.3;                       // shine
+        break;
+      case 'snow':
+        l = 1 + (rnd() - 0.5) * 0.06;
+        if (rnd() > 0.95) l *= 0.92;
+        break;
+      case 'water':
+        l = 1 + Math.sin((y + x * 0.3) * 0.9) * 0.06 + (rnd() - 0.5) * 0.05;  // ripples
+        break;
+      case 'bedrock': {
+        const cell = (Math.floor(x / 2) * 23 + Math.floor(y / 2) * 41) % 6;
+        l = 0.6 + cell * 0.13;              // jagged blocks
+        break;
+      }
+      case 'gold':
+        l = 1 + (rnd() - 0.5) * 0.12;
+        if (rnd() > 0.9) l *= 1.35;         // sparkle
+        break;
+      case 'coal_ore':
+      case 'iron_ore':
+      case 'diamond_ore': {
+        l = 0.82 + (rnd() - 0.5) * 0.14;
+        const vein = (x + y * 3 + Math.floor(x / 3) * 5 + Math.floor(y / 3) * 7) % 11;
+        if (vein < 2 || rnd() > 0.88) {
+          if (pattern === 'coal_ore') ctx.fillStyle = '#151515';
+          else if (pattern === 'iron_ore') ctx.fillStyle = '#d08b55';
+          else ctx.fillStyle = '#5ff2f2';
+          ctx.fillRect(x, y, 1, 1);
+          continue;
+        }
+        break;
+      }
+      case 'obsidian':
+        l = 1 + (rnd() - 0.5) * 0.25;
+        if (rnd() > 0.93) l *= 1.6;         // purple glints
+        break;
+      case 'moonrock':
+        l = 1 + (rnd() - 0.5) * 0.1;
+        if (rnd() > 0.95) l *= 1.2;
+        else if (rnd() > 0.92) l *= 0.62;   // craters
+        break;
+      case 'cheese':
+        l = 1 + (rnd() - 0.5) * 0.08;
+        if ((x - 4) * (x - 4) + (y - 5) * (y - 5) < 8 ||
+            (x - 11) * (x - 11) + (y - 10) * (y - 10) < 6 ||
+            (x - 7) * (x - 7) + (y - 13) * (y - 13) < 4) l *= 0.55;
+        else if (rnd() > 0.9) l *= 1.18;
+        break;
+      case 'crafting':
+        l = 1 + (rnd() - 0.5) * 0.16;
+        if (x % 8 === 0 || y % 8 === 0) l *= 0.58;
+        else if ((x > 10 && y < 5) || (x < 5 && y > 10)) l *= 1.15;
+        break;
+      case 'furnace':
+        l = 0.78 + (rnd() - 0.5) * 0.16;
+        if (x === 0 || y === 0 || x === s - 1 || y === s - 1) l *= 0.55;
+        if (x > 4 && x < 12 && y > 5 && y < 11) l *= 0.5;
+        if (x > 6 && x < 10 && y > 7 && y < 10) l *= 1.35;
+        break;
+      case 'torch':
+        l = 1 + (rnd() - 0.5) * 0.12;
+        if (y < 5) l *= 1.8;
+        else if (x < 5 || x > 10) l *= 0.55;
+        break;
+      case 'cactus':
+        l = 1 + (rnd() - 0.5) * 0.14;
+        if (x === 3 || x === 12) l *= 1.3;
+        if (x === 0 || x === s - 1) l *= 0.65;
+        if (rnd() > 0.92) l *= 0.72;
+        break;
+      case 'pumpkin':
+        l = 1 + (rnd() - 0.5) * 0.12;
+        if (x % 5 === 0) l *= 0.72;
+        if (y === 1 || y === s - 2) l *= 0.82;
+        break;
+    }
+    const r = Math.min(255, col.r * 255 * l) | 0;
+    const g = Math.min(255, col.g * 255 * l) | 0;
+    const b = Math.min(255, col.b * 255 * l) | 0;
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.fillRect(x, y, 1, 1);
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+  return t;
+}
+function makeMaterial(type) {
+  const b = BLOCKS[type];
+  const m = new THREE.MeshLambertMaterial({ map: makeTexture(b.color, b.pattern) });
+  if (b.alpha != null) { m.transparent = true; m.opacity = b.alpha; }
+  if (type === 'torch') m.emissive.setHex(0xff8a1d);
+  return m;
+}
+
+// ============================================================ greedy-ish chunk-mesh world rendering
+// Per chunk we build a THREE.Group of merged BufferGeometry meshes, one per block-type
+// present in that chunk. Faces are emitted per-exposed-face (merged into one geometry per
+// type = huge draw-call win), preserving the exact per-type CanvasTexture materials and
+// transparency. Opaque types cast+receive shadows; alpha types (water/glass/leaves) are
+// drawn double-sided and don't cast shadows.
+const world = new Map();
+const edits = new Map();
+const key = (x, y, z) => x + ',' + y + ',' + z;
+
+const materials = {};
+for (const t of TYPES) materials[t] = makeMaterial(t);
+
+const chunkMeshes = new Map();   // "cx,cz" -> THREE.Group
+const dirty = new Set();         // "cx,cz" keys whose mesh must rebuild next frame
+
+// per-face geometry: 6 faces, each as [normal, 4 corner offsets (CCW seen from outside)]
+const FACES = [
+  { n: [ 1, 0, 0], c: [[1,0,0],[1,1,0],[1,1,1],[1,0,1]] },  // +X
+  { n: [-1, 0, 0], c: [[0,0,1],[0,1,1],[0,1,0],[0,0,0]] },  // -X
+  { n: [ 0, 1, 0], c: [[0,1,1],[1,1,1],[1,1,0],[0,1,0]] },  // +Y
+  { n: [ 0,-1, 0], c: [[0,0,0],[1,0,0],[1,0,1],[0,0,1]] },  // -Y
+  { n: [ 0, 0, 1], c: [[1,0,1],[1,1,1],[0,1,1],[0,0,1]] },  // +Z
+  { n: [ 0, 0,-1], c: [[0,0,0],[0,1,0],[1,1,0],[1,0,0]] },  // -Z
+];
+const UVQUAD = [[0,0],[0,1],[1,1],[1,0]];
+
+// Should the face of `type` block (at x,y,z) toward neighbour `nt` be drawn?
+function faceExposed(type, nt) {
+  if (nt == null) return true;                 // air → always
+  if (isOpaque(type)) return !isOpaque(nt);    // opaque hidden only behind opaque
+  // transparent current (water/glass/leaves): hide only against same type (no internal seams)
+  return nt !== type;
+}
+
+function chunkOwnedBlocks(cx, cz) { return chunkBlocks.get(chunkKey(cx, cz)); }
+
+function buildChunkMesh(cx, cz) {
+  const ck = chunkKey(cx, cz);
+  const owned = chunkBlocks.get(ck);
+  // remove any existing group first
+  const old = chunkMeshes.get(ck);
+  if (old) { scene.remove(old); for (const m of old.children) m.geometry.dispose(); chunkMeshes.delete(ck); }
+  if (!owned || owned.size === 0) return;
+
+  // accumulate per-type vertex data
+  const acc = new Map();   // type -> {pos:[], norm:[], uv:[]}
+  const get = (x, y, z) => world.get(key(x, y, z));
+  for (const k of owned) {
+    const [x, y, z] = k.split(',').map(Number);
+    const type = world.get(k);
+    if (type == null) continue;
+    let a = acc.get(type);
+    if (!a) { a = { pos: [], norm: [], uv: [] }; acc.set(type, a); }
+    for (const f of FACES) {
+      const nt = get(x + f.n[0], y + f.n[1], z + f.n[2]);
+      if (!faceExposed(type, nt)) continue;
+      // two triangles 0-1-2, 0-2-3
+      for (const [a0, a1, a2] of [[0,1,2],[0,2,3]]) {
+        for (const idx of [a0, a1, a2]) {
+          const c = f.c[idx];
+          a.pos.push(x + c[0], y + c[1], z + c[2]);
+          a.norm.push(f.n[0], f.n[1], f.n[2]);
+          a.uv.push(UVQUAD[idx][0], UVQUAD[idx][1]);
+        }
+      }
+    }
+  }
+  if (acc.size === 0) return;
+
+  const group = new THREE.Group();
+  for (const [type, a] of acc) {
+    if (!a.pos.length) continue;
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(a.pos), 3));
+    g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(a.norm), 3));
+    g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(a.uv), 2));
+    const mesh = new THREE.Mesh(g, materials[type]);
+    if (isOpaque(type)) { mesh.castShadow = true; mesh.receiveShadow = true; }
+    else { mesh.receiveShadow = true; }
+    group.add(mesh);
+  }
+  scene.add(group);
+  chunkMeshes.set(ck, group);
+}
+
+// mark a chunk (and border-neighbour chunks if the block sits on a chunk edge) dirty
+function markDirty(x, y, z) {
+  const cx = Math.floor(x / CHUNK), cz = Math.floor(z / CHUNK);
+  dirty.add(chunkKey(cx, cz));
+  const lx = ((x % CHUNK) + CHUNK) % CHUNK, lz = ((z % CHUNK) + CHUNK) % CHUNK;
+  if (lx === 0) dirty.add(chunkKey(cx - 1, cz));
+  if (lx === CHUNK - 1) dirty.add(chunkKey(cx + 1, cz));
+  if (lz === 0) dirty.add(chunkKey(cx, cz - 1));
+  if (lz === CHUNK - 1) dirty.add(chunkKey(cx, cz + 1));
+}
+function flushDirty() {
+  if (!dirty.size) return;
+  for (const ck of dirty) { if (loaded.has(ck)) { const [cx, cz] = ck.split(',').map(Number); buildChunkMesh(cx, cz); } }
+  dirty.clear();
+}
+
+// ============================================================ terrain generation
+function rand(x, z) { const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return s - Math.floor(s); }
+function smooth2(x, z) {
+  const xi = Math.floor(x), zi = Math.floor(z), xf = x - xi, zf = z - zi;
+  const u = xf * xf * (3 - 2 * xf), v = zf * zf * (3 - 2 * zf);
+  const a = rand(xi, zi), b = rand(xi + 1, zi), c = rand(xi, zi + 1), d = rand(xi + 1, zi + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+function rand3(x, y, z) { const s = Math.sin(x * 12.9 + y * 78.2 + z * 37.7) * 43758.5; return s - Math.floor(s); }
+function smooth3(x, y, z) {
+  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+  const xf = x - xi, yf = y - yi, zf = z - zi;
+  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), w = zf * zf * (3 - 2 * zf);
+  const L = (a, b, t) => a + (b - a) * t;
+  return L(
+    L(L(rand3(xi, yi, zi), rand3(xi + 1, yi, zi), u), L(rand3(xi, yi + 1, zi), rand3(xi + 1, yi + 1, zi), u), v),
+    L(L(rand3(xi, yi, zi + 1), rand3(xi + 1, yi, zi + 1), u), L(rand3(xi, yi + 1, zi + 1), rand3(xi + 1, yi + 1, zi + 1), u), v), w);
+}
+
+const SIZE = 40, SEA = 7;
+// low-frequency biome field: >0.55 → desert (sand, low rolling hills), else plains/grass
+function biomeAt(x, z) { return smooth2(x / 140 + 50, z / 140 + 50); }
+function isDesert(x, z) { return biomeAt(x, z) > 0.55; }
+function heightAt(x, z) {
+  const n = smooth2(x / 22, z / 22) * 1.0 + smooth2(x / 9, z / 9) * 0.35;
+  const amp = isDesert(x, z) ? 9 : 16;   // deserts: lower, gentler rolling hills
+  return Math.floor(6 + n / 1.35 * amp);
+}
+function surfaceY(x, z) { return heightAt(x, z) + 1; }
+
+// ---- chunked, effectively-infinite world ----
+const CHUNK = 16, CHUNK_RADIUS = 7;    // load radius in chunks (Chebyshev/square)
+const loaded = new Set();              // "cx,cz" keys of generated chunks
+const chunkKey = (cx, cz) => cx + ',' + cz;
+const chunkOf = (x, z) => [Math.floor(x / CHUNK), Math.floor(z / CHUNK)];
+const chunkBlocks = new Map();         // "cx,cz" -> Set of world keys placed by that chunk's gen
+
+// set a world block AND record it as owned by the chunk currently being generated
+let genCur = null;                     // Set being filled by the in-progress genChunk
+function placeBlock(k, type) { world.set(k, type); if (genCur) genCur.add(k); }
+
+// terrain column generator (no render) — used by genChunk
+function genColumn(x, z) {
+  const h = heightAt(x, z);
+  let top = 'grass';
+  if (h >= 20) top = 'snow'; else if (h <= SEA) top = 'sand';
+  else if (isDesert(x, z)) top = 'sand';
+  for (let y = 0; y <= h; y++) {
+    if (y >= 2 && y <= h - 2 && smooth3(x / 9, y / 7, z / 9) > 0.78) continue;
+    let type;
+    if (y === 0) type = 'bedrock';
+    else if (y === h) type = top;
+    else if (y >= h - 3) type = (top === 'sand') ? 'sand' : 'dirt';
+    else type = 'stone';
+    if (type === 'stone') {
+      const coal = smooth3(x / 5 + 13, y / 5, z / 5 - 9);
+      const iron = smooth3(x / 4 - 20, y / 4 + 6, z / 4 + 18);
+      const diamond = smooth3(x / 3 + 41, y / 3 - 3, z / 3 + 5);
+      if (y < 8 && diamond > 0.82 && rand3(x, y, z) > 0.72) type = 'diamond_ore';
+      else if (y < 20 && iron > 0.80 && rand3(x + 4, y, z - 2) > 0.62) type = 'iron_ore';
+      else if (y < 28 && coal > 0.77 && rand3(x - 3, y + 9, z) > 0.55) type = 'coal_ore';
+    }
+    placeBlock(key(x, y, z), type);
+  }
+  if (h < SEA) for (let y = h + 1; y <= SEA; y++) placeBlock(key(x, y, z), 'water');
+}
+// a tree whose trunk origin is (x,z) — deterministic, same test as before
+function genTree(x, z) {
+  const h = heightAt(x, z);
+  if (h <= SEA || h >= 20) return;
+  if (rand(x * 7.3, z * 3.1) > 0.985 && world.get(key(x, h, z)) === 'grass') {
+    const th = 4 + Math.floor(rand(x, z) * 3);
+    for (let i = 1; i <= th; i++) placeBlock(key(x, h + i, z), 'log');
+    const ty = h + th;
+    for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) for (let dy = -1; dy <= 1; dy++) {
+      if (Math.abs(dx) === 2 && Math.abs(dz) === 2) continue;
+      const k = key(x + dx, ty + dy, z + dz);
+      if (!world.has(k)) placeBlock(k, 'leaves');
+    }
+    placeBlock(key(x, ty + 1, z), 'leaves');
+  }
+}
+function genSurfaceBits(x, z) {
+  const h = heightAt(x, z);
+  const top = world.get(key(x, h, z));
+  if (top === 'sand' && isDesert(x, z) && rand(x * 13.1, z * 9.7) > 0.992) {
+    const th = 2 + Math.floor(rand(x * 2.3, z * 5.1) * 2);
+    for (let i = 1; i <= th; i++) placeBlock(key(x, h + i, z), 'cactus');
+  } else if (top === 'grass' && h > SEA && rand(x * 5.9, z * 11.3) > 0.996) {
+    placeBlock(key(x, h + 1, z), 'pumpkin');
+  }
+}
+
+const MOON_CRATERS = [
+  { x: -10, z: -7, r: 6, d: 4 },
+  { x: 7, z: -9, r: 5, d: 3 },
+  { x: 10, z: 8, r: 7, d: 5 },
+  { x: -4, z: 12, r: 4, d: 3 },
+  { x: 0, z: 0, r: 8, d: 4 },
+];
+function moonCraterDepth(lx, lz) {
+  let depth = 0;
+  for (const c of MOON_CRATERS) {
+    const d = Math.hypot(lx - c.x, lz - c.z);
+    if (d >= c.r) continue;
+    const bowl = (1 - d / c.r) * c.d;
+    depth = Math.max(depth, Math.floor(bowl + smooth2((lx + c.x) / 5, (lz + c.z) / 5) * 1.2));
+  }
+  return Math.min(5, depth);
+}
+function polishMoonChunk(pl, x0, z0, owned) {
+  if (pl.name !== 'Moon') return;
+  for (let lx = -pl.H; lx <= pl.H; lx++)
+    for (let lz = -pl.H; lz <= pl.H; lz++) {
+      const wx = pl.cx + lx, wz = pl.cz + lz;
+      if (wx < x0 || wx >= x0 + CHUNK || wz < z0 || wz >= z0 + CHUNK) continue;
+
+      const depth = moonCraterDepth(lx, lz);
+      if (depth > 0) {
+        for (let j = 0; j < depth; j++) {
+          const wy = pl.cy + pl.H - j;
+          const k = key(wx, wy, wz);
+          world.delete(k); owned.delete(k);
+        }
+        const floorY = pl.cy + pl.H - depth;
+        const floorK = key(wx, floorY, wz);
+        const rim = depth >= 4 && rand(wx * 1.7, wz * 2.1) > 0.87;
+        world.set(floorK, rim ? 'cheese' : 'moonrock'); owned.add(floorK);
+      }
+
+      for (let ly = -pl.H; ly <= pl.H; ly++) {
+        const wy = pl.cy + ly, k = key(wx, wy, wz);
+        if (world.get(k) === 'moonrock' && rand3(wx / 3 + 7, wy / 4 + 11, wz / 3 - 2) > 0.985) {
+          world.set(k, 'cheese');
+        }
+      }
+    }
+}
+
+function genStarterCamp(x0, z0) {
+  const inChunk = (x, z) => x >= x0 && x < x0 + CHUNK && z >= z0 && z < z0 + CHUNK;
+  for (let x = -3; x <= 3; x++) for (let z = 6; z <= 10; z++) {
+    if (!inChunk(x, z)) continue;
+    placeBlock(key(x, surfaceY(x, z), z), 'planks');
+  }
+  const items = [
+    { x: -2, z: 7, t: 'crafting' },
+    { x: -1, z: 7, t: 'furnace' },
+    { x: 2, z: 8, t: 'torch' },
+    { x: 2, z: 10, t: 'torch' },
+    { x: -3, z: 8, t: 'log' },
+    { x: 3, z: 8, t: 'log' },
+  ];
+  for (const it of items) {
+    if (!inChunk(it.x, it.z)) continue;
+    const y = surfaceY(it.x, it.z) + 1;
+    placeBlock(key(it.x, y, it.z), it.t);
+  }
+}
+
+function genChunk(cx, cz) {
+  const ck = chunkKey(cx, cz);
+  if (loaded.has(ck)) return;
+  const x0 = cx * CHUNK, z0 = cz * CHUNK;
+  const owned = new Set();
+  genCur = owned;
+  // terrain
+  for (let x = x0; x < x0 + CHUNK; x++)
+    for (let z = z0; z < z0 + CHUNK; z++) genColumn(x, z);
+  // trees whose trunk lies in this chunk (leaves may spill into neighbours, owned by this chunk)
+  for (let x = x0; x < x0 + CHUNK; x++)
+    for (let z = z0; z < z0 + CHUNK; z++) genTree(x, z);
+  for (let x = x0; x < x0 + CHUNK; x++)
+    for (let z = z0; z < z0 + CHUNK; z++) genSurfaceBits(x, z);
+  genStarterCamp(x0, z0);
+  // planet cubes overlapping this chunk: a hollow voxel shell of `pl.plat` blocks
+  for (const pl of PLANETS) {
+    if (pl.cx + pl.H < x0 || pl.cx - pl.H >= x0 + CHUNK ||
+        pl.cz + pl.H < z0 || pl.cz - pl.H >= z0 + CHUNK) continue;
+    const inner = pl.H - pl.shell;   // blocks with all |local| <= inner are hollow
+    for (let lx = -pl.H; lx <= pl.H; lx++)
+      for (let lz = -pl.H; lz <= pl.H; lz++) {
+        const wx = pl.cx + lx, wz = pl.cz + lz;
+        if (wx < x0 || wx >= x0 + CHUNK || wz < z0 || wz >= z0 + CHUNK) continue;
+        for (let ly = -pl.H; ly <= pl.H; ly++) {
+          // shell = on/near the surface of the cube (not in the hollow interior)
+          if (Math.max(Math.abs(lx), Math.abs(ly), Math.abs(lz)) <= inner) continue;
+          placeBlock(key(wx, pl.cy + ly, wz), pl.plat);
+        }
+      }
+    polishMoonChunk(pl, x0, z0, owned);
+  }
+  // apply persisted player edits that fall in this chunk (owned by it, restored on regen)
+  for (const [k, v] of edits) {
+    const [ex, , ez] = k.split(',').map(Number);
+    if (Math.floor(ex / CHUNK) !== cx || Math.floor(ez / CHUNK) !== cz) continue;
+    if (v === null) { world.delete(k); owned.delete(k); } else { world.set(k, v); owned.add(k); }
+  }
+  genCur = null;
+  chunkBlocks.set(ck, owned);
+  loaded.add(ck);
+  // build this chunk's mesh, and rebuild already-loaded neighbours so shared faces update
+  buildChunkMesh(cx, cz);
+  for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
+    if (loaded.has(chunkKey(cx + dx, cz + dz))) buildChunkMesh(cx + dx, cz + dz);
+  }
+}
+
+function unloadChunk(cx, cz) {
+  const ck = chunkKey(cx, cz);
+  if (!loaded.has(ck)) return;
+  const grp = chunkMeshes.get(ck);
+  if (grp) { scene.remove(grp); for (const m of grp.children) m.geometry.dispose(); chunkMeshes.delete(ck); }
+  const owned = chunkBlocks.get(ck);
+  if (owned) for (const k of owned) {
+    world.delete(k);   // edits map untouched → regen restores player changes
+  }
+  chunkBlocks.delete(ck);
+  loaded.delete(ck);
+}
+
+function streamChunks(budget) {
+  const p = controls.getObject().position;
+  const [pcx, pcz] = chunkOf(p.x, p.z);
+  // load nearest-first within CHUNK_RADIUS, up to budget new chunks
+  let made = 0;
+  for (let r = 0; r <= CHUNK_RADIUS && made < budget; r++) {
+    for (let dx = -r; dx <= r && made < budget; dx++)
+      for (let dz = -r; dz <= r && made < budget; dz++) {
+        if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;  // ring only
+        const cx = pcx + dx, cz = pcz + dz;
+        if (!loaded.has(chunkKey(cx, cz))) { genChunk(cx, cz); made++; }
+      }
+  }
+  // unload chunks beyond CHUNK_RADIUS+2
+  for (const ck of loaded) {
+    const [cx, cz] = ck.split(',').map(Number);
+    if (Math.max(Math.abs(cx - pcx), Math.abs(cz - pcz)) > CHUNK_RADIUS + 2) unloadChunk(cx, cz);
+  }
+}
+
+// ============================================================ block highlight + voxel ray-march
+const highlight = new THREE.LineSegments(
+  new THREE.EdgesGeometry(new THREE.BoxGeometry(1.002, 1.002, 1.002)),
+  new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45 }));
+highlight.visible = false;
+scene.add(highlight);
+
+function rayBlock(origin, dir, maxDist) {
+  let ix = Math.floor(origin.x), iy = Math.floor(origin.y), iz = Math.floor(origin.z);
+  const sx = Math.sign(dir.x), sy = Math.sign(dir.y), sz = Math.sign(dir.z);
+  const tdx = sx !== 0 ? Math.abs(1 / dir.x) : Infinity;
+  const tdy = sy !== 0 ? Math.abs(1 / dir.y) : Infinity;
+  const tdz = sz !== 0 ? Math.abs(1 / dir.z) : Infinity;
+  let tmx = sx > 0 ? (ix + 1 - origin.x) * tdx : (origin.x - ix) * tdx;
+  let tmy = sy > 0 ? (iy + 1 - origin.y) * tdy : (origin.y - iy) * tdy;
+  let tmz = sz > 0 ? (iz + 1 - origin.z) * tdz : (origin.z - iz) * tdz;
+  if (sx === 0) tmx = Infinity; if (sy === 0) tmy = Infinity; if (sz === 0) tmz = Infinity;
+  let nx = 0, ny = 0, nz = 0, t = 0;
+  for (let i = 0; i < 64; i++) {
+    if (world.has(key(ix, iy, iz))) return { x: ix, y: iy, z: iz, nx, ny, nz };
+    if (tmx < tmy && tmx < tmz) { ix += sx; t = tmx; tmx += tdx; nx = -sx; ny = 0; nz = 0; }
+    else if (tmy < tmz)         { iy += sy; t = tmy; tmy += tdy; nx = 0; ny = -sy; nz = 0; }
+    else                        { iz += sz; t = tmz; tmz += tdz; nx = 0; ny = 0; nz = -sz; }
+    if (t > maxDist) return null;
+  }
+  return null;
+}
+let aimBlock = null;
+function updateAim() {
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  aimBlock = rayBlock(controls.getObject().position, dir, 7);
+  if (aimBlock) { highlight.visible = true; highlight.position.set(aimBlock.x + 0.5, aimBlock.y + 0.5, aimBlock.z + 0.5); }
+  else highlight.visible = false;
+}
+
+// ============================================================ particles
+const pGeo = new THREE.BoxGeometry(0.14, 0.14, 0.14);
+const pMatCache = new Map();
+const particles = [];
+function colorMat(hex) {
+  if (!pMatCache.has(hex)) pMatCache.set(hex, new THREE.MeshLambertMaterial({ color: hex }));
+  return pMatCache.get(hex);
+}
+function spawnParticles(cx, cy, cz, hex, n) {
+  if (particles.length > 220) return;
+  for (let i = 0; i < n; i++) {
+    const m = new THREE.Mesh(pGeo, colorMat(hex));
+    m.position.set(cx + Math.random(), cy + Math.random(), cz + Math.random());
+    scene.add(m);
+    particles.push({ m, vx: (Math.random() - 0.5) * 4, vy: 3 + Math.random() * 3, vz: (Math.random() - 0.5) * 4, life: 0.6 + Math.random() * 0.3 });
+  }
+}
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.vy -= 18 * dt;
+    p.m.position.x += p.vx * dt; p.m.position.y += p.vy * dt; p.m.position.z += p.vz * dt;
+    p.life -= dt;
+    const s = Math.max(0.01, p.life * 1.6);
+    p.m.scale.set(s, s, s);
+    if (p.life <= 0) { scene.remove(p.m); particles.splice(i, 1); }
+  }
+}
+
+// ============================================================ controls & player
+// We drive the camera orientation ourselves (instead of PointerLockControls) so
+// that "up" can point along any of the six axes for cube-planet gravity. `yaw`
+// and `pitch` are our look angles; each frame the camera quaternion is rebuilt
+// as  faceUp-rotation ∘ yaw/pitch, so yaw spins around whatever face you stand on.
+scene.add(camera);
+let yaw = 0, pitch = 0;
+const _lookEulerC = new THREE.Euler(0, 0, 0, 'YXZ');
+function applyCameraOrientation() {
+  _lookEulerC.set(pitch, yaw, 0, 'YXZ');
+  camera.quaternion.setFromEuler(_lookEulerC).premultiply(qUpCur);
+}
+const _ctrlListeners = { lock: [], unlock: [] };
+const controls = {
+  getObject: () => camera,
+  isLocked: false,
+  lock: () => renderer.domElement.requestPointerLock(),
+  unlock: () => document.exitPointerLock(),
+  addEventListener: (type, fn) => { (_ctrlListeners[type] || (_ctrlListeners[type] = [])).push(fn); },
+};
+document.addEventListener('pointerlockchange', () => {
+  controls.isLocked = document.pointerLockElement === renderer.domElement;
+  (controls.isLocked ? _ctrlListeners.lock : _ctrlListeners.unlock).forEach((f) => f());
+});
+document.addEventListener('mousemove', (e) => {
+  if (!controls.isLocked) return;
+  yaw -= e.movementX * 0.002;
+  pitch -= e.movementY * 0.002;
+  pitch = Math.max(-1.5, Math.min(1.5, pitch));
+});
+
+// ---- relative-gravity frame (Mario Galaxy cube planets) ----
+const UP_Y = Object.freeze(new THREE.Vector3(0, 1, 0));
+const gUp = new THREE.Vector3(0, 1, 0);     // current "up" used by physics (snaps instantly)
+let upAxis = 'y', upSign = 1;               // gUp expressed as a signed world axis
+let curPlanet = null;                       // the cube planet whose gravity we're in, or null
+const qUpCur = new THREE.Quaternion();      // camera up-basis, eased toward qUpTarget for a smooth tumble
+const qUpTarget = new THREE.Quaternion();
+
+// down direction at a world point: toward the nearest face of an in-range cube, else world -Y.
+const _gd = new THREE.Vector3();
+function gravityAt(x, y, z) {
+  for (const pl of PLANETS) {
+    const dx = x - pl.cx, dy = y - pl.cy, dz = z - pl.cz;
+    const reach = pl.H + PLANET_INFLUENCE;
+    if (Math.abs(dx) < reach && Math.abs(dy) < reach && Math.abs(dz) < reach) {
+      const ax = Math.abs(dx), ay = Math.abs(dy), az = Math.abs(dz);
+      if (ax >= ay && ax >= az)      _gd.set(-Math.sign(dx) || -1, 0, 0);
+      else if (ay >= az)             _gd.set(0, -Math.sign(dy) || -1, 0);
+      else                           _gd.set(0, 0, -Math.sign(dz) || -1);
+      return { down: _gd, planet: pl };
+    }
+  }
+  _gd.set(0, -1, 0);
+  return { down: _gd, planet: null };
+}
+function setUpFromDown(down) {
+  gUp.copy(down).multiplyScalar(-1);
+  if (Math.abs(gUp.x) > 0.5)      { upAxis = 'x'; upSign = Math.sign(gUp.x); }
+  else if (Math.abs(gUp.z) > 0.5) { upAxis = 'z'; upSign = Math.sign(gUp.z); }
+  else                            { upAxis = 'y'; upSign = Math.sign(gUp.y) || 1; }
+}
+// recompute the gravity frame for the player and ease the camera up-basis toward it
+function updateGravityFrame(dt) {
+  if (dead) { gUp.copy(UP_Y); upAxis = 'y'; upSign = 1; curPlanet = null; }
+  else {
+    const g = gravityAt(camera.position.x, camera.position.y, camera.position.z);
+    setUpFromDown(g.down); curPlanet = g.planet;
+  }
+  qUpTarget.setFromUnitVectors(UP_Y, gUp);
+  qUpCur.slerp(qUpTarget, 1 - Math.exp(-dt / 0.09));   // ~0.25s tumble over an edge
+  applyCameraOrientation();
+}
+
+const RADIUS = 0.3, PLAYER_H = 1.7;
+const GRAVITY = 28, WALK = 6, SPRINT = 8.6, SWIM = 3.6, FLY = 13, JUMP = 9;
+const MAX_HP = 20, MAX_HUNGER = 20;
+const SPAWN = new THREE.Vector3(0.5, surfaceY(0, 0) + PLAYER_H, 0.5);
+controls.getObject().position.copy(SPAWN);
+
+let gameMode = 'survival';
+let flying = false;
+let health = MAX_HP, dead = false, deathTimer = 0;
+let hunger = MAX_HUNGER, hungerTick = 0, starveTick = 0, eatCooldown = 0;
+let hurtFlash = 0, lastHurt = -99, regenTimer = 0, clock = 0;
+let airMaxY = SPAWN.y, wasGrounded = true;
+const velocity = new THREE.Vector3();
+let vUp = 0;           // player speed along gUp (negative = falling toward the face)
+let onGround = false;
+
+const overlay = document.getElementById('overlay');
+const menu = document.getElementById('menu');
+const info = document.getElementById('info');
+const hurtEl = document.getElementById('hurt');
+const promptEl = document.getElementById('prompt');
+const heartsEl = document.getElementById('hearts');
+const hungerEl = document.getElementById('hunger');
+const deathEl = document.getElementById('death');
+const joinEl = document.getElementById('join');
+const joinForm = document.getElementById('joinBox');
+const studentNameInput = document.getElementById('studentName');
+const joinMsg = document.getElementById('joinMsg');
+const teacherPanel = document.getElementById('teacherPanel');
+const studentList = document.getElementById('studentList');
+const teleportAllBtn = document.getElementById('teleportAll');
+const resetWorldBtn = document.getElementById('resetWorld');
+const mpStatus = document.getElementById('mpStatus');
+let menuOpen = false;
+let trackpadMode = false;
+let lastPointer = null;
+
+overlay.addEventListener('click', () => { if (joinEl.classList.contains('hidden')) controls.lock(); });
+controls.addEventListener('lock', () => overlay.classList.add('hidden'));
+controls.addEventListener('unlock', () => {
+  if (!trackpadMode) velocity.set(0, 0, 0);
+  if (!menuOpen && !dead && !trackpadMode) overlay.classList.remove('hidden');
+});
+
+function setTrackpadMode(on) {
+  trackpadMode = on;
+  lastPointer = null;
+  velocity.set(0, 0, 0);
+  if (on) {
+    if (controls.isLocked) controls.unlock();
+    overlay.classList.add('hidden');
+    renderer.domElement.focus();
+  } else if (!controls.isLocked && !menuOpen && !dead) {
+    overlay.classList.remove('hidden');
+  }
+}
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (!trackpadMode || controls.isLocked || menuOpen || dead) return;
+  if (lastPointer) {
+    const dx = e.clientX - lastPointer.x, dy = e.clientY - lastPointer.y;
+    yaw -= dx * 0.0032;
+    pitch -= dy * 0.0032;
+    pitch = Math.max(-1.5, Math.min(1.5, pitch));
+  }
+  lastPointer = { x: e.clientX, y: e.clientY };
+});
+renderer.domElement.addEventListener('pointerleave', () => { lastPointer = null; });
+renderer.domElement.addEventListener('pointerdown', () => renderer.domElement.focus());
+
+const keys = {};
+const controlsActive = () => controls.isLocked || trackpadMode;
+addEventListener('keyup', (e) => keys[e.code] = false);
+addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Tab'].includes(e.code)) e.preventDefault();
+  if (e.code === 'Tab') { setTrackpadMode(!trackpadMode); return; }
+  if (e.code === 'KeyE') { e.preventDefault(); toggleMenu(); return; }
+  if (e.code === 'Escape' && menuOpen) { closeMenu(); return; }
+  if (e.code === 'Escape' && trackpadMode) { setTrackpadMode(false); return; }
+  if (e.code === 'KeyF' && gameMode === 'creative') { flying = !flying; velocity.y = 0; vUp = 0; }
+  if (e.code === 'KeyG' && (!MULTIPLAYER || IS_TEACHER)) setMode(gameMode === 'creative' ? 'survival' : 'creative');
+  if (e.code === 'KeyP' && controlsActive()) { localStorage.removeItem('mc_save_v1'); location.reload(); }
+  if (e.code.startsWith('Digit')) { const n = +e.code.slice(5) - 1; if (n >= 0 && n < 9) selectSlot(n); }
+});
+
+function setMode(m) {
+  gameMode = m;
+  if (m === 'survival') {
+    flying = false; health = MAX_HP; hunger = MAX_HUNGER;
+    hungerTick = 0; starveTick = 0; regenTimer = 0;
+    heartsEl.style.display = 'block'; hungerEl.style.display = 'block';
+    updateHearts(); updateHunger();
+  }
+  else { heartsEl.style.display = 'none'; hungerEl.style.display = 'none'; hurtFlash = 0; hurtEl.style.opacity = 0; }
+}
+setMode(gameMode);   // apply the default (survival) HUD state at startup
+
+function collideBox(px, py, pz, r, h) {
+  for (let x = Math.floor(px - r); x <= Math.floor(px + r); x++)
+    for (let z = Math.floor(pz - r); z <= Math.floor(pz + r); z++)
+      for (let y = Math.floor(py); y <= Math.floor(py + h); y++)
+        if (isSolid(world.get(key(x, y, z)))) return true;
+  return false;
+}
+// AABB of an upright box around a foot anchor, given a signed world up-axis.
+// The box rises `h` along (upAx,upSgn) and spans ±r on the two tangent axes.
+function boxAABB(fx, fy, fz, upAx, upSgn, r, h) {
+  const f = { x: fx, y: fy, z: fz }, lo = {}, hi = {};
+  for (const ax of ['x', 'y', 'z']) {
+    if (ax === upAx) { const b = f[ax] + upSgn * h; lo[ax] = Math.min(f[ax], b); hi[ax] = Math.max(f[ax], b); }
+    else { lo[ax] = f[ax] - r; hi[ax] = f[ax] + r; }
+  }
+  return { lo, hi };
+}
+function solidInAABB(lo, hi) {
+  for (let x = Math.floor(lo.x); x <= Math.floor(hi.x); x++)
+    for (let y = Math.floor(lo.y); y <= Math.floor(hi.y); y++)
+      for (let z = Math.floor(lo.z); z <= Math.floor(hi.z); z++)
+        if (isSolid(world.get(key(x, y, z)))) return true;
+  return false;
+}
+// player box: feet sit gUp*PLAYER_H below the camera (eye)
+function playerCollides(pos) {
+  const fx = pos.x - gUp.x * PLAYER_H, fy = pos.y - gUp.y * PLAYER_H, fz = pos.z - gUp.z * PLAYER_H;
+  const { lo, hi } = boxAABB(fx, fy, fz, upAxis, upSign, RADIUS, PLAYER_H);
+  return solidInAABB(lo, hi);
+}
+// move the player along one world axis, reverting on collision; flag ground/ceiling on the up-axis
+function moveAxis(axis, amount, pos) {
+  if (amount === 0) return;
+  pos[axis] += amount;
+  if (playerCollides(pos)) {
+    pos[axis] -= amount;
+    if (axis === upAxis) { if (amount * upSign < 0) onGround = true; vUp = 0; }
+  }
+}
+function grounded(pos) {
+  return playerCollides({ x: pos.x - gUp.x * 0.05, y: pos.y - gUp.y * 0.05, z: pos.z - gUp.z * 0.05 });
+}
+
+// arrow-key look — feeds the same yaw/pitch the mouse drives
+function arrowLook(dt) {
+  const r = 2.2 * dt;
+  if (keys['ArrowLeft']) yaw += r;
+  if (keys['ArrowRight']) yaw -= r;
+  if (keys['ArrowUp']) pitch += r;
+  if (keys['ArrowDown']) pitch -= r;
+  pitch = Math.max(-1.5, Math.min(1.5, pitch));
+}
+
+// ---- player damage / death ----
+function updateHearts() {
+  let s = '';
+  for (let i = 0; i < 10; i++) {
+    const v = health - i * 2;
+    const col = v >= 2 ? '#e23344' : v === 1 ? '#ff8aa0' : '#555';
+    s += `<span style="color:${col}">♥</span>`;
+  }
+  heartsEl.innerHTML = s;
+}
+function updateHunger() {
+  let s = '';
+  for (let i = 0; i < 10; i++) {
+    const v = hunger - i * 2;
+    const col = v >= 2 ? '#d89b34' : v === 1 ? '#e6bf66' : '#555';
+    s += `<span style="color:${col}">◆</span>`;
+  }
+  hungerEl.innerHTML = s;
+}
+function waterAtPlayer(pos) {
+  const eye = world.get(key(Math.floor(pos.x), Math.floor(pos.y), Math.floor(pos.z)));
+  const feet = world.get(key(
+    Math.floor(pos.x - gUp.x * PLAYER_H),
+    Math.floor(pos.y - gUp.y * PLAYER_H),
+    Math.floor(pos.z - gUp.z * PLAYER_H)));
+  return eye === 'water' || feet === 'water';
+}
+function eatFood(itemId) {
+  const food = FOODS[itemId];
+  if (!food || eatCooldown > 0 || dead) return false;
+  eatCooldown = 0.45;
+  if (gameMode === 'survival') {
+    hunger = Math.min(MAX_HUNGER, hunger + food.hunger);
+    health = Math.min(MAX_HP, health + food.heal);
+    updateHunger(); updateHearts();
+  }
+  spawnParticles(
+    controls.getObject().position.x - 0.5,
+    controls.getObject().position.y - 1.0,
+    controls.getObject().position.z - 0.5,
+    food.color,
+    6);
+  return true;
+}
+function damagePlayer(dmg) {
+  if (gameMode !== 'survival' || dead) return;
+  health -= dmg; lastHurt = clock; hurtFlash = 0.55; updateHearts();
+  if (health <= 0) die();
+}
+function hurtByMob(dmg, fromPos) {
+  if (gameMode !== 'survival' || dead) return;
+  const pos = controls.getObject().position;
+  let kx = pos.x - fromPos.x, kz = pos.z - fromPos.z;
+  const l = Math.hypot(kx, kz) || 1;
+  pos.x += kx / l * 0.45; pos.z += kz / l * 0.45;
+  velocity.y = 5;
+  damagePlayer(dmg);
+}
+function die() {
+  dead = true; deathTimer = 2; health = 0; updateHearts();
+  deathEl.classList.remove('hidden');
+  hurtFlash = 0.8;
+}
+function respawn() {
+  dead = false; deathEl.classList.add('hidden');
+  health = MAX_HP; hunger = MAX_HUNGER; updateHearts(); updateHunger();
+  controls.getObject().position.copy(SPAWN);
+  ensureSpawnChunks();   // spawn may have been unloaded while roaming far away
+  velocity.set(0, 0, 0); vUp = 0; airMaxY = SPAWN.y; wasGrounded = true; hungerTick = 0; starveTick = 0;
+}
+
+// ============================================================ mobs
+const MOB_R = 0.4, MOB_H = 1.0, MOB_JUMP = 7, MOB_MAX = 64;
+const PASSIVE_KINDS = [
+  { name: 'Pig',     body: 0xe79aa6, head: 0xe0858f, leg: 0x5a4030, hp: 10, speed: 2.0, shape: 'quad' },
+  { name: 'Cow',     body: 0x5e4632, head: 0xeeeae0, leg: 0x3a2c20, hp: 12, speed: 1.8, shape: 'quad' },
+  { name: 'Sheep',   body: 0xeeeee6, head: 0xe6d6c2, leg: 0xcabfae, hp: 10, speed: 2.0, shape: 'quad' },
+  { name: 'Chicken', body: 0xf4f4ee, head: 0xf2c84b, leg: 0xf2a23a, hp: 6,  speed: 2.4, shape: 'quad' },
+  { name: 'Rabbit',  body: 0xc8a37a, head: 0xd8b48c, leg: 0x9a7350, hp: 5,  speed: 3.0, shape: 'quad' },
+  { name: 'Iguana',  body: 0x6fae4a, head: 0x7cbb55, leg: 0x4f7d34, hp: 6,  speed: 1.6, shape: 'iguana' },
+  { name: 'Ostrich', body: 0x4a4038, head: 0xe8c6a0, leg: 0xd9b48c, hp: 10, speed: 3.2, shape: 'ostrich' },
+  { name: 'Cheetah', body: 0xd9a441, head: 0xe0b057, leg: 0xc28b30, hp: 10, speed: 4.4, shape: 'cheetah' },
+];
+const HOSTILE_KINDS = [
+  { name: 'Zombie',  body: 0x3f7a3a, head: 0x6b8f5a, leg: 0x33485a, hp: 16, speed: 2.4, dmg: 3, detect: 18, shape: 'biped',   hostile: true, weight: 1 },
+  { name: 'Spider',  body: 0x2a2230, head: 0x442b3a, leg: 0x1c1620, hp: 12, speed: 3.4, dmg: 2, detect: 15, shape: 'spider',  hostile: true, weight: 1 },
+  { name: 'Creeper', body: 0x4e9a3a, head: 0x57a341, leg: 0x2f5f25, hp: 14, speed: 2.6, dmg: 0, detect: 16, shape: 'creeper', hostile: true, weight: 0.9, explode: true },
+  { name: 'Hydra',   body: 0x2f7d5a, head: 0x3fa06f, leg: 0x224d3a, hp: 60, speed: 1.5, dmg: 6, detect: 24, shape: 'hydra',   hostile: true, weight: 0.15 },
+  { name: 'Dragon',  body: 0x6a3550, head: 0x7d4a66, leg: 0x4a2438, hp: 90, speed: 7.0, dmg: 7, detect: 44, shape: 'dragon',  hostile: true, weight: 0.2, fly: true },
+  { name: 'Alien',   body: 0x57c08a, head: 0x8df0bd, leg: 0x2f7d5a, hp: 14, speed: 2.8, dmg: 4, detect: 18, shape: 'alien',   hostile: true, weight: 0.7 },
+];
+const BIRD_KIND = { name: 'Bird', body: 0x4a86e0, head: 0x3f73c4, leg: 0xf2a23a, hp: 4, speed: 9, shape: 'bird', fly: true };
+const mobs = [];
+const mobGroups = [];
+
+function box(w, h, d, color, x, y, z) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color }));
+  m.position.set(x, y, z);
+  return m;
+}
+function buildBody(k) {
+  const g = new THREE.Group(); let parts;
+  if (k.shape === 'biped') {
+    parts = [
+      box(0.6, 0.9, 0.35, k.body, 0, 0.95, 0),
+      box(0.5, 0.5, 0.5, k.head, 0, 1.65, 0),
+      box(0.22, 0.7, 0.22, k.body, 0.4, 0.95, 0),   // arms
+      box(0.22, 0.7, 0.22, k.body, -0.4, 0.95, 0),
+      box(0.24, 0.55, 0.24, k.leg, 0.16, 0.28, 0),  // legs
+      box(0.24, 0.55, 0.24, k.leg, -0.16, 0.28, 0),
+    ];
+  } else if (k.shape === 'spider') {
+    parts = [
+      box(0.9, 0.45, 1.1, k.body, 0, 0.45, 0),
+      box(0.5, 0.4, 0.5, k.head, 0, 0.45, 0.7),
+      box(0.9, 0.12, 0.12, k.leg, 0.7, 0.45, 0.2),
+      box(0.9, 0.12, 0.12, k.leg, -0.7, 0.45, 0.2),
+      box(0.9, 0.12, 0.12, k.leg, 0.7, 0.45, -0.2),
+      box(0.9, 0.12, 0.12, k.leg, -0.7, 0.45, -0.2),
+    ];
+  } else if (k.shape === 'creeper') {
+    parts = [
+      box(0.55, 1.1, 0.35, k.body, 0, 0.95, 0),         // tall body
+      box(0.5, 0.5, 0.5, k.head, 0, 1.65, 0),            // head
+      box(0.24, 0.42, 0.3, k.leg, 0.16, 0.21, 0.28),     // 4 stubby feet
+      box(0.24, 0.42, 0.3, k.leg, -0.16, 0.21, 0.28),
+      box(0.24, 0.42, 0.3, k.leg, 0.16, 0.21, -0.28),
+      box(0.24, 0.42, 0.3, k.leg, -0.16, 0.21, -0.28),
+    ];
+  } else if (k.shape === 'hydra') {
+    parts = [
+      box(1.5, 1.3, 2.4, k.body, 0, 1.05, 0),            // bulky body
+      box(0.45, 0.55, 0.45, k.leg, 0.55, 0.32, 0.8),     // 4 thick legs
+      box(0.45, 0.55, 0.45, k.leg, -0.55, 0.32, 0.8),
+      box(0.45, 0.55, 0.45, k.leg, 0.55, 0.32, -0.8),
+      box(0.45, 0.55, 0.45, k.leg, -0.55, 0.32, -0.8),
+      box(0.5, 0.4, 1.2, k.body, 0, 1.2, -1.5),          // tail
+    ];
+    for (const [nx, lean] of [[0, 0], [0.55, 0.18], [-0.55, -0.18]]) { // 3 necks + heads
+      parts.push(box(0.32, 1.1, 0.32, k.body, nx, 2.0, 1.0 + lean));
+      parts.push(box(0.6, 0.55, 0.8, k.head, nx, 2.65, 1.35 + lean));
+    }
+  } else if (k.shape === 'dragon') {
+    parts = [
+      box(1.2, 1.0, 2.6, k.body, 0, 0, 0),                // body
+      box(0.45, 0.5, 1.7, k.body, 0, 0.15, -2.0),         // tail
+      box(0.42, 0.5, 1.3, k.body, 0, 0.45, 1.45),         // neck
+      box(0.75, 0.6, 0.95, k.head, 0, 0.75, 2.35),        // head
+      box(0.16, 0.4, 0.16, k.head, 0.24, 1.1, 2.5),       // horns
+      box(0.16, 0.4, 0.16, k.head, -0.24, 1.1, 2.5),
+      box(0.32, 0.5, 0.32, k.leg, 0.55, -0.7, 0.5),       // legs
+      box(0.32, 0.5, 0.32, k.leg, -0.55, -0.7, 0.5),
+      box(0.32, 0.5, 0.32, k.leg, 0.55, -0.7, -0.7),
+      box(0.32, 0.5, 0.32, k.leg, -0.55, -0.7, -0.7),
+    ];
+    const wingL = box(2.6, 0.1, 1.5, k.head, 1.7, 0.45, 0);   // bat wings
+    const wingR = box(2.6, 0.1, 1.5, k.head, -1.7, 0.45, 0);
+    wingL.userData.wing = 1; wingR.userData.wing = -1;
+    parts.push(wingL, wingR);
+  } else if (k.shape === 'iguana') {
+    parts = [
+      box(0.35, 0.3, 1.0, k.body, 0, 0.3, 0),         // long low body
+      box(0.3, 0.28, 0.35, k.head, 0, 0.32, 0.62),     // head
+      box(0.06, 0.18, 0.7, k.head, 0, 0.5, 0),         // dorsal crest
+      box(0.16, 0.14, 0.95, k.body, 0, 0.28, -0.9),    // long tail
+      box(0.5, 0.12, 0.14, k.leg, 0.3, 0.18, 0.3),     // 4 sprawled legs
+      box(0.5, 0.12, 0.14, k.leg, -0.3, 0.18, 0.3),
+      box(0.5, 0.12, 0.14, k.leg, 0.3, 0.18, -0.3),
+      box(0.5, 0.12, 0.14, k.leg, -0.3, 0.18, -0.3),
+    ];
+  } else if (k.shape === 'ostrich') {
+    parts = [
+      box(0.7, 0.7, 0.9, k.body, 0, 1.1, 0),           // round body
+      box(0.5, 0.35, 0.2, k.body, 0, 1.15, -0.55),     // tail feathers
+      box(0.18, 0.9, 0.18, k.leg, 0.18, 0.45, 0.05),   // long legs
+      box(0.18, 0.9, 0.18, k.leg, -0.18, 0.45, 0.05),
+      box(0.16, 0.85, 0.16, k.body, 0, 1.7, 0.3),      // long neck
+      box(0.28, 0.3, 0.42, k.head, 0, 2.18, 0.42),     // head
+    ];
+  } else if (k.shape === 'cheetah') {
+    parts = [
+      box(0.5, 0.5, 1.5, k.body, 0, 0.65, 0),          // sleek long body
+      box(0.42, 0.42, 0.45, k.head, 0, 0.78, 0.9),     // head
+      box(0.12, 0.1, 1.0, k.leg, 0, 0.58, -1.15),      // long tail
+      box(0.18, 0.55, 0.18, k.leg, 0.2, 0.28, 0.5),    // 4 legs
+      box(0.18, 0.55, 0.18, k.leg, -0.2, 0.28, 0.5),
+      box(0.18, 0.55, 0.18, k.leg, 0.2, 0.28, -0.5),
+      box(0.18, 0.55, 0.18, k.leg, -0.2, 0.28, -0.5),
+    ];
+  } else if (k.shape === 'alien') {
+    parts = [
+      box(0.5, 0.85, 0.3, k.body, 0, 0.9, 0),            // slender body
+      box(0.72, 0.7, 0.72, k.head, 0, 1.7, 0),           // big head
+      box(0.62, 0.16, 0.16, 0x101820, 0, 1.74, 0.36),    // dark eye band
+      box(0.18, 0.6, 0.18, k.body, 0.32, 0.9, 0),        // thin arms
+      box(0.18, 0.6, 0.18, k.body, -0.32, 0.9, 0),
+      box(0.2, 0.55, 0.2, k.leg, 0.14, 0.28, 0),
+      box(0.2, 0.55, 0.2, k.leg, -0.14, 0.28, 0),
+      box(0.06, 0.3, 0.06, k.head, 0.18, 2.18, 0),       // antennae
+      box(0.06, 0.3, 0.06, k.head, -0.18, 2.18, 0),
+    ];
+  } else if (k.shape === 'bird') {
+    parts = [
+      box(0.42, 0.42, 0.85, k.body, 0, 0, 0),            // body
+      box(0.32, 0.32, 0.32, k.head, 0, 0.16, 0.52),      // head
+      box(0.12, 0.1, 0.22, k.leg, 0, 0.13, 0.76),        // beak
+      box(0.46, 0.5, 0.5, k.body, 0, -0.04, -0.5),       // tail
+    ];
+    const wL = box(0.95, 0.08, 0.5, k.body, 0.6, 0.05, 0);
+    const wR = box(0.95, 0.08, 0.5, k.body, -0.6, 0.05, 0);
+    wL.userData.wing = 1; wR.userData.wing = -1;
+    parts.push(wL, wR);
+  } else { // quad
+    parts = [
+      box(0.85, 0.6, 1.25, k.body, 0, 0.7, 0),
+      box(0.6, 0.6, 0.6, k.head, 0, 0.85, 0.85),
+      box(0.22, 0.5, 0.22, k.leg, 0.28, 0.25, 0.45),
+      box(0.22, 0.5, 0.22, k.leg, -0.28, 0.25, 0.45),
+      box(0.22, 0.5, 0.22, k.leg, 0.28, 0.25, -0.45),
+      box(0.22, 0.5, 0.22, k.leg, -0.28, 0.25, -0.45),
+    ];
+  }
+  parts.forEach(p => g.add(p));
+  return { g, parts };
+}
+function spawnFrom(kind, x, z) {
+  const { g, parts } = buildBody(kind);
+  g.position.set(x + 0.5, surfaceY(Math.floor(x), Math.floor(z)) + 0.2, z + 0.5);
+  scene.add(g);
+  const mob = { group: g, parts, kind, hp: kind.hp, speed: kind.speed, hostile: !!kind.hostile,
+                vy: 0, onGround: false, blocked: false, heading: Math.random() * TAU,
+                moving: true, wander: 1 + Math.random() * 3, hitT: 0, attackCD: 0, fuse: 0, bob: Math.random() * TAU,
+                home: { x: 0, z: 0 }, leash: SIZE - 1 };   // roam-leash (overridden for planet mobs)
+  g.userData.mob = mob;
+  mobs.push(mob); mobGroups.push(g);
+  return mob;
+}
+// spawn at an explicit position (e.g. a planet platform) with a local leash
+function spawnFromAt(kind, x, y, z, home, leash) {
+  const m = spawnFrom(kind, x, z);
+  m.group.position.set(x + 0.5, y, z + 0.5);
+  if (home) m.home = home;
+  if (leash != null) m.leash = leash;
+  return m;
+}
+function spawnPassive(x, z) { return spawnFrom(PASSIVE_KINDS[Math.floor(Math.random() * PASSIVE_KINDS.length)], x, z); }
+function spawnHostile(x, z) {
+  let total = 0; for (const k of HOSTILE_KINDS) total += (k.weight ?? 1);
+  let r = Math.random() * total, pick = HOSTILE_KINDS[0];
+  for (const k of HOSTILE_KINDS) { r -= (k.weight ?? 1); if (r <= 0) { pick = k; break; } }
+  return spawnFrom(pick, x, z);
+}
+function setEmissive(mob, hex) { mob.parts.forEach(p => p.material.emissive.setHex(hex)); }
+function removeMob(mob) {
+  scene.remove(mob.group);
+  mobs.splice(mobs.indexOf(mob), 1);
+  mobGroups.splice(mobGroups.indexOf(mob.group), 1);
+}
+// ---- dragon fireballs ----
+const fireballs = [];
+function dragonBreathe(mob) {
+  const head = mob.group.position;
+  const pp = controls.getObject().position;
+  const dir = new THREE.Vector3(pp.x - head.x, (pp.y - 0.6) - head.y, pp.z - head.z).normalize();
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.38, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff6a1a }));
+  m.position.copy(head).addScaledVector(dir, 2.6);
+  scene.add(m);
+  fireballs.push({ m, vel: dir.multiplyScalar(26), life: 3 });
+  spawnParticles(head.x - 0.5, head.y, head.z - 0.5, 0xff8a2a, 5);
+}
+function updateFireballs(dt) {
+  for (let i = fireballs.length - 1; i >= 0; i--) {
+    const f = fireballs[i];
+    f.m.position.addScaledVector(f.vel, dt);
+    const p = f.m.position, pp = controls.getObject().position;
+    let hit = false;
+    if (Math.hypot(p.x - pp.x, p.y - (pp.y - 0.8), p.z - pp.z) < 1.2) { hurtByMob(6, p); hit = true; }
+    else if (isSolid(world.get(key(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z))))) hit = true;
+    if (hit) { spawnParticles(p.x - 0.5, p.y, p.z - 0.5, 0xff7a1a, 10); scene.remove(f.m); fireballs.splice(i, 1); continue; }
+    f.life -= dt;
+    if (f.life <= 0 || p.y < -30) { scene.remove(f.m); fireballs.splice(i, 1); }
+  }
+}
+// ---- flying mobs (dragon): free 3D flight, swoop the player, breathe fire ----
+function updateFlyer(mob, dt) {
+  const g = mob.group, k = mob.kind;
+  const pp = controls.getObject().position;
+  const dxz = Math.hypot(pp.x - g.position.x, pp.z - g.position.z);
+  const chase = mob.hostile && gameMode === 'survival' && !dead && dxz < k.detect;
+  let tx, ty, tz;
+  if (chase) {
+    tx = pp.x; tz = pp.z; ty = pp.y + 4 + Math.sin(clock * 0.8 + mob.bob) * 3;
+  } else {
+    mob.wander -= dt;
+    if (mob.wander <= 0) { mob.heading = Math.random() * TAU; mob.wander = 3 + Math.random() * 4; }
+    tx = g.position.x + Math.cos(mob.heading) * 8;
+    tz = g.position.z + Math.sin(mob.heading) * 8;
+    ty = surfaceY(Math.floor(g.position.x), Math.floor(g.position.z)) + 14 + Math.sin(clock + mob.bob) * 2;
+  }
+  const mx = tx - g.position.x, my = ty - g.position.y, mz = tz - g.position.z;
+  const len = Math.hypot(mx, my, mz) || 1;
+  const step = Math.min(len, k.speed * dt);
+  g.position.x += mx / len * step; g.position.y += my / len * step; g.position.z += mz / len * step;
+  const fod = Math.hypot(g.position.x - mob.home.x, g.position.z - mob.home.z);
+  if (fod > mob.leash) {
+    const a = Math.atan2(g.position.z - mob.home.z, g.position.x - mob.home.x);
+    g.position.x = mob.home.x + Math.cos(a) * mob.leash;
+    g.position.z = mob.home.z + Math.sin(a) * mob.leash;
+  }
+  const heading = Math.atan2(mz, mx);
+  g.rotation.y = -heading + Math.PI / 2;
+  const flap = Math.sin(clock * 6 + mob.bob) * 0.5;
+  for (const p of mob.parts) if (p.userData.wing) p.rotation.z = p.userData.wing * flap;
+  if (chase) {
+    mob.attackCD -= dt;
+    const d3 = Math.hypot(pp.x - g.position.x, (pp.y - 0.6) - g.position.y, pp.z - g.position.z);
+    if (mob.attackCD <= 0 && d3 < 34) { dragonBreathe(mob); mob.attackCD = 1.8; }
+    if (d3 < 3.2 && mob.attackCD < 1.4) { hurtByMob(k.dmg, g.position); mob.attackCD = 1.8; }
+  }
+  if (mob.hitT > 0) { mob.hitT -= dt; if (mob.hitT <= 0) setEmissive(mob, 0x000000); }
+}
+// mob box collision against the world, with an arbitrary signed up-axis
+function mobCollidesUp(p, uax, usg) {
+  const { lo, hi } = boxAABB(p.x, p.y, p.z, uax, usg, MOB_R, MOB_H);
+  return solidInAABB(lo, hi);
+}
+const _mUp = new THREE.Vector3(), _mTo = new THREE.Vector3();
+const _qMobUp = new THREE.Quaternion(), _qMobYaw = new THREE.Quaternion();
+// a mob bound to a cube planet: walks its faces under the same snapped gravity as the player
+function updatePlanetMob(mob, dt) {
+  const g = mob.group;
+  const grav = gravityAt(g.position.x, g.position.y, g.position.z);
+  _mUp.copy(grav.down).multiplyScalar(-1);
+  let uax, usg;
+  if (Math.abs(_mUp.x) > 0.5)      { uax = 'x'; usg = Math.sign(_mUp.x); }
+  else if (Math.abs(_mUp.z) > 0.5) { uax = 'z'; usg = Math.sign(_mUp.z); }
+  else                             { uax = 'y'; usg = Math.sign(_mUp.y) || 1; }
+  const tan = ['x', 'y', 'z'].filter((a) => a !== uax);   // the two tangent axes
+
+  let chasing = false;
+  if (mob.hostile && gameMode === 'survival' && !dead) {
+    const pp = controls.getObject().position;
+    _mTo.set(pp.x - g.position.x, pp.y - g.position.y, pp.z - g.position.z);
+    if (_mTo.length() < mob.kind.detect) {
+      chasing = true; mob.moving = true;
+      mob.heading = Math.atan2(_mTo[tan[1]], _mTo[tan[0]]);
+      mob.attackCD -= dt;
+      if (_mTo.length() < 2.0 && mob.attackCD <= 0) { hurtByMob(mob.kind.dmg, g.position); mob.attackCD = 0.8; }
+    }
+  }
+  if (!chasing) {
+    mob.wander -= dt;
+    if (mob.wander <= 0) { mob.heading = Math.random() * TAU; mob.moving = Math.random() < 0.8; mob.wander = 2 + Math.random() * 4; }
+  }
+
+  if (mob.moving) {
+    const c = Math.cos(mob.heading) * mob.speed * dt, s = Math.sin(mob.heading) * mob.speed * dt;
+    g.position[tan[0]] += c;
+    if (mobCollidesUp(g.position, uax, usg)) { g.position[tan[0]] -= c; mob.blocked = true; }
+    g.position[tan[1]] += s;
+    if (mobCollidesUp(g.position, uax, usg)) { g.position[tan[1]] -= s; mob.blocked = true; }
+  }
+  // gravity toward the face
+  mob.vy -= PLANET_GRAVITY * dt;
+  const d = mob.vy * dt;
+  g.position[uax] += usg * d;
+  if (mobCollidesUp(g.position, uax, usg)) { g.position[uax] -= usg * d; if (mob.vy < 0) mob.onGround = true; mob.vy = 0; }
+  else mob.onGround = false;
+  if (mob.blocked && mob.onGround) mob.vy = MOB_JUMP;   // hop over edges/blocks
+  mob.blocked = false;
+
+  // orient: stand on the current face, yaw toward heading
+  _qMobUp.setFromUnitVectors(UP_Y, _mUp);
+  _qMobYaw.setFromAxisAngle(UP_Y, -mob.heading + Math.PI / 2);
+  g.quaternion.copy(_qMobUp).multiply(_qMobYaw);
+
+  if (mob.hitT > 0) { mob.hitT -= dt; if (mob.hitT <= 0) setEmissive(mob, 0x000000); }
+}
+function updateMob(mob, dt) {
+  if (mob.planet) { updatePlanetMob(mob, dt); return; }
+  if (mob.kind.fly) { updateFlyer(mob, dt); return; }
+  const g = mob.group;
+  let chasing = false;
+  if (mob.hostile && gameMode === 'survival' && !dead) {
+    const pp = controls.getObject().position;
+    const dx = pp.x - g.position.x, dz = pp.z - g.position.z;
+    const d = Math.hypot(dx, dz);
+    if (d < mob.kind.detect) {
+      chasing = true; mob.moving = true;
+      mob.heading = Math.atan2(dz, dx);
+      g.rotation.y = -mob.heading + Math.PI / 2;
+      if (mob.kind.explode) {
+        if (d < 2.4 && Math.abs((pp.y - PLAYER_H) - g.position.y) < 2.5) {
+          mob.moving = false;                       // stop and prime
+          mob.fuse += dt;
+          setEmissive(mob, (Math.sin(mob.fuse * 28) > 0) ? 0x66ff33 : 0x000000);
+          const s = 1 + Math.min(0.6, mob.fuse * 0.5);
+          g.scale.set(s, s, s);
+          if (mob.fuse > 1.1) { explodeCreeper(mob); return; }
+        } else if (mob.fuse > 0) {                   // player escaped: defuse
+          mob.fuse = Math.max(0, mob.fuse - dt * 2);
+          if (mob.fuse === 0) { setEmissive(mob, 0x000000); g.scale.set(1, 1, 1); }
+        }
+      } else {
+        mob.attackCD -= dt;
+        if (d < 1.7 && Math.abs((pp.y - PLAYER_H) - g.position.y) < 2 && mob.attackCD <= 0) {
+          hurtByMob(mob.kind.dmg, g.position); mob.attackCD = 0.8;
+        }
+      }
+    }
+  }
+  if (!chasing) {
+    mob.wander -= dt;
+    if (mob.wander <= 0) { mob.heading = Math.random() * TAU; mob.moving = Math.random() < 0.75; mob.wander = 2 + Math.random() * 4; }
+    if (mob.moving) g.rotation.y = -mob.heading + Math.PI / 2;
+  }
+  const spd = mob.speed * dt;
+  let dxm = 0, dzm = 0;
+  if (mob.moving) { dxm = Math.cos(mob.heading) * spd; dzm = Math.sin(mob.heading) * spd; }
+
+  g.position.x += dxm;
+  if (collideBox(g.position.x, g.position.y, g.position.z, MOB_R, MOB_H)) { g.position.x -= dxm; mob.blocked = true; }
+  g.position.z += dzm;
+  if (collideBox(g.position.x, g.position.y, g.position.z, MOB_R, MOB_H)) { g.position.z -= dzm; mob.blocked = true; }
+
+  mob.vy -= GRAVITY * dt;
+  g.position.y += mob.vy * dt;
+  if (collideBox(g.position.x, g.position.y, g.position.z, MOB_R, MOB_H)) {
+    g.position.y -= mob.vy * dt;
+    if (mob.vy < 0) mob.onGround = true;
+    mob.vy = 0;
+  } else mob.onGround = false;
+  if (mob.blocked && mob.onGround) mob.vy = MOB_JUMP;
+  mob.blocked = false;
+
+  const od = Math.hypot(g.position.x - mob.home.x, g.position.z - mob.home.z);
+  if (od > mob.leash) {
+    mob.heading += Math.PI;
+    const a = Math.atan2(g.position.z - mob.home.z, g.position.x - mob.home.x);
+    g.position.x = mob.home.x + Math.cos(a) * mob.leash;
+    g.position.z = mob.home.z + Math.sin(a) * mob.leash;
+  }
+  if (mob.hitT > 0) { mob.hitT -= dt; if (mob.hitT <= 0) setEmissive(mob, 0x000000); }
+  if (g.position.y < -30) removeMob(mob);
+}
+function hurtMob(mob, dmg, dir) {
+  mob.hp -= dmg;
+  mob.hitT = 0.18; setEmissive(mob, 0x888888);
+  mob.vy = 5;
+  mob.group.position.x += dir.x * 0.6;
+  mob.group.position.z += dir.z * 0.6;
+  if (mob.hp <= 0) {
+    spawnParticles(mob.group.position.x - 0.5, mob.group.position.y, mob.group.position.z - 0.5, mob.kind.body, 14);
+    removeMob(mob);
+  }
+}
+function explodeCreeper(mob) {
+  const g = mob.group;
+  const ex = g.position.x, ey = g.position.y, ez = g.position.z;
+  // blast damage to player, falling off with distance
+  const pp = controls.getObject().position;
+  const pd = Math.hypot(pp.x - ex, (pp.y - PLAYER_H) - ey, pp.z - ez);
+  if (pd < 4.5) hurtByMob(Math.max(1, Math.round((1 - pd / 4.5) * 18)), g.position);
+  // also harm nearby mobs
+  for (const m of mobs.slice()) {
+    if (m === mob) continue;
+    const md = Math.hypot(m.group.position.x - ex, m.group.position.y - ey, m.group.position.z - ez);
+    if (md < 4) hurtMob(m, 14, { x: (m.group.position.x - ex) / (md || 1), z: (m.group.position.z - ez) / (md || 1) });
+  }
+  // carve a crater
+  const R = 3, bx = Math.floor(ex), by = Math.floor(ey), bz = Math.floor(ez);
+  for (let dx = -R; dx <= R; dx++) for (let dy = -R; dy <= R; dy++) for (let dz = -R; dz <= R; dz++) {
+    if (dx * dx + dy * dy + dz * dz > R * R) continue;
+    const k = key(bx + dx, by + dy, bz + dz), t = world.get(k);
+    if (t && t !== 'bedrock') {
+      world.delete(k);
+      const owned = chunkOwnedBlocks(...chunkOf(bx + dx, bz + dz)); if (owned) owned.delete(k);
+      markDirty(bx + dx, by + dy, bz + dz);
+    }
+  }
+  spawnParticles(ex - 1, ey, ez - 1, 0x333333, 40);
+  spawnParticles(ex - 0.5, ey + 0.5, ez - 0.5, mob.kind.body, 18);
+  if (pd < 4.5) hurtFlash = Math.max(hurtFlash, 0.6);
+  removeMob(mob);
+}
+function passiveCount() { let n = 0; for (const m of mobs) if (!m.hostile && !m.kind.fly) n++; return n; }
+function hostileCount() { return mobs.length - passiveCount(); }
+function randomSurface(range) {
+  const x = Math.floor((Math.random() - 0.5) * range);
+  const z = Math.floor((Math.random() - 0.5) * range);
+  return heightAt(x, z) > SEA ? { x, z } : null;
+}
+// a land surface point in an annulus [rMin,rMax] around pos, on dry loaded terrain
+function surfaceNear(pos, rMin, rMax) {
+  const ang = Math.random() * TAU, r = rMin + Math.random() * (rMax - rMin);
+  const x = Math.floor(pos.x + Math.cos(ang) * r), z = Math.floor(pos.z + Math.sin(ang) * r);
+  if (heightAt(x, z) <= SEA) return null;
+  return loaded.has(chunkKey(...chunkOf(x, z))) ? { x, z } : null;
+}
+for (let i = 0; i < 16; i++) { const s = randomSurface(60); if (s) spawnPassive(s.x, s.z); }
+// birds flying over the home world
+for (let i = 0; i < 7; i++) {
+  const s = randomSurface(60);
+  if (s) { const b = spawnFrom(BIRD_KIND, s.x, s.z); b.group.position.y = surfaceY(s.x, s.z) + 12 + Math.random() * 6; }
+}
+// aliens roaming each cube planet — they walk all six faces via the same relative gravity
+const ALIEN_KIND = HOSTILE_KINDS.find(k => k.name === 'Alien');
+for (const pl of PLANETS) {
+  for (let i = 0; i < pl.aliens; i++) {
+    const ax = pl.cx + Math.floor((Math.random() * 2 - 1) * (pl.H - 1));
+    const az = pl.cz + Math.floor((Math.random() * 2 - 1) * (pl.H - 1));
+    const m = spawnFromAt(ALIEN_KIND, ax, pl.cy + pl.H + 1.1, az, { x: pl.cx, z: pl.cz }, 9999);
+    m.planet = pl;   // marks it for relative-gravity movement
+  }
+}
+let spawnTimer = 4;
+
+// ============================================================ break / place / attack
+const raycaster = new THREE.Raycaster();
+const center = new THREE.Vector2(0, 0);
+
+addEventListener('contextmenu', (e) => e.preventDefault());
+addEventListener('mousedown', (e) => {
+  if (!controlsActive() || dead) return;
+  swing();
+  if (e.button === 0) leftClick();
+  else if (e.button === 2) rightClick();
+});
+addEventListener('wheel', (e) => { if (controlsActive()) selectSlot((currentSlot + (e.deltaY > 0 ? 1 : 8)) % 9); });
+
+function nearestMob() {
+  raycaster.far = 5;
+  raycaster.setFromCamera(center, camera);
+  const hits = raycaster.intersectObjects(mobGroups, true);
+  if (!hits.length) return null;
+  let o = hits[0].object;
+  while (o && !o.userData.mob) o = o.parent;
+  return o ? { mob: o.userData.mob, dist: hits[0].distance } : null;
+}
+// ============================================================ arrows (bow)
+const arrows = [];
+const ARROW_SPEED = 34, ARROW_GRAVITY = GRAVITY * 0.35;
+function makeArrow() {
+  const g = new THREE.Group();
+  g.add(box(0.04, 0.04, 0.6, 0x8a5a2b, 0, 0, 0));        // shaft (+z)
+  g.add(box(0.09, 0.09, 0.14, 0xcfd6dd, 0, 0, 0.34));    // tip
+  g.add(box(0.14, 0.02, 0.12, 0xeeeeee, 0, 0, -0.28));   // fletching
+  g.add(box(0.02, 0.14, 0.12, 0xeeeeee, 0, 0, -0.28));
+  return g;
+}
+const ARROW_FWD = new THREE.Vector3(0, 0, 1);
+function shootArrow() {
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  const g = makeArrow();
+  const start = controls.getObject().position.clone().addScaledVector(dir, 0.6);
+  g.position.copy(start);
+  scene.add(g);
+  arrows.push({ g, vel: dir.clone().multiplyScalar(ARROW_SPEED), life: 4 });
+}
+function removeArrow(i) { scene.remove(arrows[i].g); arrows.splice(i, 1); }
+function updateArrows(dt) {
+  for (let i = arrows.length - 1; i >= 0; i--) {
+    const a = arrows[i];
+    a.vel.y -= ARROW_GRAVITY * dt;
+    a.g.position.addScaledVector(a.vel, dt);
+    a.g.quaternion.setFromUnitVectors(ARROW_FWD, a.vel.clone().normalize());
+    const p = a.g.position;
+    // mob hit
+    let hit = false;
+    for (const m of mobs) {
+      const mp = m.group.position;
+      if (Math.hypot(p.x - mp.x, p.y - (mp.y + 0.5), p.z - mp.z) < 0.8) {
+        const d = a.vel.clone(); d.y = 0; d.normalize();
+        hurtMob(m, 5, d); hit = true; break;
+      }
+    }
+    if (hit) { removeArrow(i); continue; }
+    // block hit
+    if (isSolid(world.get(key(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z))))) {
+      spawnParticles(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z), 0x8a5a2b, 3);
+      removeArrow(i); continue;
+    }
+    a.life -= dt;
+    if (a.life <= 0 || p.y < -30) removeArrow(i);
+  }
+}
+
+// ============================================================ bullets (gun)
+const bullets = [];
+const BULLET_SPEED = 80;
+function shootBullet() {
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  const start = controls.getObject().position.clone().addScaledVector(dir, 0.6);
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffe066 }));
+  m.position.copy(start);
+  scene.add(m);
+  bullets.push({ m, vel: dir.clone().multiplyScalar(BULLET_SPEED), life: 2 });
+  spawnParticles(start.x - 0.5, start.y - 0.5, start.z - 0.5, 0xffd24a, 2);
+}
+function updateBullets(dt) {
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    let hit = false;
+    for (let s = 0; s < 4 && !hit; s++) {
+      b.m.position.addScaledVector(b.vel, dt / 4);
+      const p = b.m.position;
+      for (const m of mobs) {
+        const mp = m.group.position;
+        if (Math.hypot(p.x - mp.x, p.y - (mp.y + 0.5), p.z - mp.z) < 1.2) {
+          const d = b.vel.clone(); d.y = 0; d.normalize();
+          hurtMob(m, 8, d); hit = true; break;
+        }
+      }
+      if (!hit && isSolid(world.get(key(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z))))) {
+        spawnParticles(Math.floor(p.x), Math.floor(p.y), Math.floor(p.z), 0xffffff, 3); hit = true;
+      }
+    }
+    b.life -= dt;
+    if (hit || b.life <= 0 || b.m.position.y < -30) { scene.remove(b.m); bullets.splice(i, 1); }
+  }
+}
+function leftClick() {
+  const held = hotbar[currentSlot];
+  if (held === 'bow') { shootArrow(); return; }
+  if (held === 'gun') { shootBullet(); return; }
+  const mobHit = nearestMob();
+  const blockDist = aimBlock ? distToBlock(aimBlock) : Infinity;
+  if (mobHit && mobHit.dist <= blockDist) {
+    const dir = new THREE.Vector3(); camera.getWorldDirection(dir); dir.y = 0; dir.normalize();
+    hurtMob(mobHit.mob, held === 'sword' ? 5 : 2, dir);
+    return;
+  }
+  if (!aimBlock) return;
+  const { x, y, z } = aimBlock;
+  if (world.get(key(x, y, z)) === 'bedrock') return;
+  const broken = world.get(key(x, y, z));
+  world.delete(key(x, y, z));
+  edits.set(key(x, y, z), null);
+  const owned = chunkOwnedBlocks(...chunkOf(x, z)); if (owned) owned.delete(key(x, y, z));
+  markDirty(x, y, z);
+  spawnParticles(x, y, z, BLOCKS[broken].color, 10);
+  broadcastBlockEdit(x, y, z, null);
+  if (gameMode === 'survival' && isBlock(broken) && broken !== 'water') addToInventory(broken, 1);
+}
+function rightClick() {
+  const held = hotbar[currentSlot];
+  if (isFood(held)) { eatFood(held); return; }
+  if (!aimBlock || !isBlock(held)) return;
+  if (gameMode === 'survival' && counts[currentSlot] <= 0) return;   // nothing left to place
+  const nx = aimBlock.x + aimBlock.nx, ny = aimBlock.y + aimBlock.ny, nz = aimBlock.z + aimBlock.nz;
+  if (world.has(key(nx, ny, nz))) return;
+  const p = controls.getObject().position, feet = Math.floor(p.y - PLAYER_H);
+  if (Math.floor(p.x) === nx && Math.floor(p.z) === nz && (ny === feet || ny === feet + 1)) return;
+  world.set(key(nx, ny, nz), held);
+  edits.set(key(nx, ny, nz), held);
+  const owned = chunkOwnedBlocks(...chunkOf(nx, nz)); if (owned) owned.add(key(nx, ny, nz));
+  markDirty(nx, ny, nz);
+  broadcastBlockEdit(nx, ny, nz, held);
+  if (gameMode === 'survival' && Number.isFinite(counts[currentSlot])) {
+    counts[currentSlot]--;
+    if (counts[currentSlot] <= 0) { hotbar[currentSlot] = null; counts[currentSlot] = 0; buildHeld(null); }
+    paintSlot(currentSlot);
+  }
+}
+function distToBlock(b) {
+  const p = controls.getObject().position;
+  return Math.hypot(b.x + 0.5 - p.x, b.y + 0.5 - p.y, b.z + 0.5 - p.z);
+}
+// ============================================================ held-item viewmodel
+const vmScene = new THREE.Scene();
+const vmCamera = new THREE.PerspectiveCamera(50, innerWidth / innerHeight, 0.01, 10);
+vmScene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.1));
+const vmLight = new THREE.DirectionalLight(0xffffff, 0.6); vmLight.position.set(1, 2, 2); vmScene.add(vmLight);
+const vmHand = new THREE.Group();
+vmHand.position.set(0.62, -0.5, -1.1);
+vmScene.add(vmHand);
+let swingT = 0;
+const SWING_DUR = 0.22;
+function swing() { swingT = SWING_DUR; }
+function buildHeld(itemId) {
+  vmHand.clear();
+  if (!itemId) { return; }   // empty slot — empty hand
+  if (itemId === 'sword') {
+    const blade = box(0.07, 0.7, 0.07, 0xc9d2da, 0, 0.25, 0);
+    const guard = box(0.32, 0.08, 0.08, 0x6b4a2b, 0, -0.12, 0);
+    const handle = box(0.08, 0.26, 0.08, 0x4a3320, 0, -0.3, 0);
+    const g = new THREE.Group(); g.add(blade, guard, handle);
+    g.rotation.set(0.2, 0.5, 0.5); g.scale.set(0.9, 0.9, 0.9);
+    vmHand.add(g);
+  } else if (itemId === 'bow') {
+    const wood = 0x7a5024;
+    const upper = box(0.05, 0.42, 0.05, wood, 0, 0.2, 0);  upper.rotation.z = 0.38;
+    const lower = box(0.05, 0.42, 0.05, wood, 0, -0.2, 0); lower.rotation.z = -0.38;
+    const grip  = box(0.06, 0.2, 0.06, 0x5a3a1c, 0, 0, 0);
+    const string = box(0.012, 0.78, 0.012, 0xe8e2d0, -0.13, 0, 0);
+    const g = new THREE.Group(); g.add(upper, lower, grip, string);
+    g.rotation.set(0.1, 0.5, 0.15);
+    vmHand.add(g);
+  } else if (itemId === 'gun') {
+    const g = new THREE.Group();
+    g.add(box(0.13, 0.15, 0.55, 0x33373c, 0, 0.04, -0.05));   // receiver
+    g.add(box(0.08, 0.08, 0.55, 0x202327, 0, 0.09, -0.42));   // barrel
+    g.add(box(0.15, 0.27, 0.16, 0x44484e, 0, -0.2, 0.14));    // grip
+    g.add(box(0.1, 0.2, 0.14, 0x202327, 0, -0.05, 0.2));      // magazine
+    g.rotation.set(0.04, 0.42, 0);
+    vmHand.add(g);
+  } else if (itemId === 'cheese_wedge') {
+    const g = new THREE.Group();
+    g.add(box(0.42, 0.24, 0.42, FOODS[itemId].color, 0, 0, 0));
+    g.add(box(0.09, 0.06, 0.09, 0x9a6f1d, -0.12, 0.07, 0.22));
+    g.add(box(0.07, 0.05, 0.07, 0x9a6f1d, 0.12, 0.03, 0.05));
+    g.add(box(0.08, 0.05, 0.08, 0x9a6f1d, -0.04, -0.05, -0.14));
+    g.scale.set(0.9, 0.9, 0.9);
+    g.rotation.set(0.25, 0.7, 0.15);
+    vmHand.add(g);
+  } else {
+    const c = box(0.5, 0.5, 0.5, BLOCKS[itemId].color, 0, 0, 0);
+    c.rotation.set(0.4, 0.7, 0);
+    vmHand.add(c);
+  }
+}
+function updateViewmodel(dt) {
+  if (swingT > 0) {
+    swingT -= dt;
+    const a = Math.sin((1 - swingT / SWING_DUR) * Math.PI);
+    vmHand.rotation.set(-a * 0.9, 0, 0);
+    vmHand.position.z = -1.1 + a * 0.25;
+  } else { vmHand.rotation.set(0, 0, 0); vmHand.position.z = -1.1; }
+}
+
+// ============================================================ hotbar + creative menu
+const hud = document.getElementById('hud');
+// Survival starting inventory: sword/bow/gun/cheese never deplete (count Infinity),
+// 64 glass to build with, and empty slots (null) to fill by mining. Finite counts
+// only matter in survival — creative places freely and refills via the E menu.
+const hotbar = ['sword', 'bow', 'gun', 'cheese_wedge', 'glass', null, null, null, null];
+const counts = [Infinity, Infinity, Infinity, Infinity, 64, 0, 0, 0, 0];
+let currentSlot = 0;
+const slotEls = hotbar.map(() => { const el = document.createElement('div'); el.className = 'slot'; hud.appendChild(el); return el; });
+function paintSlot(i) {
+  const id = hotbar[i];
+  const el = slotEls[i];
+  if (!id) { el.style.background = 'rgba(0,0,0,0.25)'; el.innerHTML = `<span class="num">${i + 1}</span>`; return; }
+  el.style.background = swatch(id);
+  const qty = Number.isFinite(counts[i]) ? `<span class="qty">${counts[i]}</span>` : '';
+  el.innerHTML = `<span class="num">${i + 1}</span>${itemName(id)}${qty}`;
+}
+// Mining drops the block into an existing stack of the same type, else the first empty slot.
+function addToInventory(type, n) {
+  for (let i = 0; i < hotbar.length; i++) {
+    if (hotbar[i] === type && Number.isFinite(counts[i])) { counts[i] += n; paintSlot(i); return true; }
+  }
+  for (let i = 0; i < hotbar.length; i++) {
+    if (hotbar[i] == null) { hotbar[i] = type; counts[i] = n; paintSlot(i); if (i === currentSlot) buildHeld(type); return true; }
+  }
+  return false;   // inventory full — block is lost
+}
+function selectSlot(i) {
+  currentSlot = i;
+  slotEls.forEach((el, j) => el.classList.toggle('active', j === i));
+  buildHeld(hotbar[i]);
+}
+hotbar.forEach((_, i) => paintSlot(i));
+selectSlot(0);
+
+// ============================================================ persistence
+function saveGame() {
+  if (MULTIPLAYER) return;
+  const p = controls.getObject().position;
+  const data = {
+    edits: [...edits.entries()],
+    hotbar: [...hotbar],
+    counts: counts.map(c => Number.isFinite(c) ? c : null),   // Infinity → null for JSON
+    currentSlot,
+    gameMode,
+    health,
+    hunger,
+    player: { x: p.x, y: p.y, z: p.z }
+  };
+  localStorage.setItem('mc_save_v1', JSON.stringify(data));
+}
+addEventListener('beforeunload', saveGame);
+setInterval(saveGame, 10000);
+
+;(function loadGame() {
+  if (MULTIPLAYER) return;
+  const raw = localStorage.getItem('mc_save_v1');
+  if (!raw) return;
+  let data; try { data = JSON.parse(raw); } catch (e) { return; }
+  // populate edits map only — chunks apply these as they generate (don't touch world here)
+  if (data.edits) for (const [k, v] of data.edits) edits.set(k, v);
+  if (data.hotbar) data.hotbar.forEach((id, i) => { hotbar[i] = id; });
+  if (data.counts) data.counts.forEach((c, i) => { counts[i] = c == null ? Infinity : c; });
+  else hotbar.forEach((id, i) => { counts[i] = id == null ? 0 : (isBlock(id) ? 64 : Infinity); });   // legacy saves
+  if (typeof data.health === 'number') health = Math.max(0, Math.min(MAX_HP, data.health));
+  if (typeof data.hunger === 'number') hunger = Math.max(0, Math.min(MAX_HUNGER, data.hunger));
+  if (data.gameMode === 'creative') {
+    setMode('creative');
+  } else {
+    heartsEl.style.display = 'block'; hungerEl.style.display = 'block';
+    updateHearts(); updateHunger();
+  }
+  hotbar.forEach((_, i) => paintSlot(i));
+  if (typeof data.currentSlot === 'number') selectSlot(data.currentSlot);
+  if (data.player) controls.getObject().position.set(data.player.x, data.player.y, data.player.z);
+})();
+
+// Generate the 3x3 chunks around SPAWN so there is ground underfoot on (re)spawn.
+function ensureSpawnChunks() {
+  const [scx, scz] = chunkOf(SPAWN.x, SPAWN.z);
+  for (let dx = -1; dx <= 1; dx++)
+    for (let dz = -1; dz <= 1; dz++) genChunk(scx + dx, scz + dz);
+}
+// Generate chunks around the (possibly restored) player position before the loop starts.
+(function genStartChunks() {
+  const p = controls.getObject().position;
+  const [pcx, pcz] = chunkOf(p.x, p.z);
+  for (let dx = -1; dx <= 1; dx++)
+    for (let dz = -1; dz <= 1; dz++) genChunk(pcx + dx, pcz + dz);
+})();
+
+const menuGrid = document.getElementById('menuGrid');
+for (const id of [...Object.keys(TOOLS), ...Object.keys(FOODS), ...TYPES]) {
+  const tile = document.createElement('div');
+  tile.className = 'tile';
+  tile.style.background = swatch(id);
+  tile.textContent = itemName(id);
+  tile.addEventListener('click', () => { hotbar[currentSlot] = id; counts[currentSlot] = Infinity; paintSlot(currentSlot); buildHeld(id); closeMenu(); });
+  menuGrid.appendChild(tile);
+}
+function toggleMenu() {
+  if (gameMode !== 'creative') { if (menuOpen) closeMenu(); return; }   // survival has no creative menu
+  menuOpen ? closeMenu() : openMenu();
+}
+function openMenu() { menuOpen = true; menu.classList.remove('hidden'); controls.unlock(); }
+function closeMenu() {
+  menuOpen = false; menu.classList.add('hidden');
+  if (trackpadMode) renderer.domElement.focus();
+  else controls.lock();
+}
+
+// ============================================================ classroom multiplayer
+let ws = null, localPlayerId = null, multiplayerJoined = false, syncT = 0;
+const remotePlayers = new Map();
+
+function localTransform() {
+  const p = controls.getObject().position;
+  return { x: p.x, y: p.y, z: p.z, yaw, pitch };
+}
+
+function sendRoom(message) {
+  if (ws && ws.readyState === WebSocket.OPEN && multiplayerJoined) ws.send(JSON.stringify(message));
+}
+
+function setMpStatus(text) {
+  if (!MULTIPLAYER) return;
+  mpStatus.textContent = text;
+  mpStatus.classList.remove('hidden');
+}
+
+function labelSprite(name, color) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256; canvas.height = 64;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = 'rgba(0,0,0,0.58)';
+  ctx.fillRect(0, 8, 256, 44);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 4;
+  ctx.strokeRect(2, 10, 252, 40);
+  ctx.fillStyle = '#fff';
+  ctx.font = '24px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(name.slice(0, 18), 128, 31);
+  const texture = new THREE.CanvasTexture(canvas);
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
+  sprite.position.set(0, 2.35, 0);
+  sprite.scale.set(2.2, 0.55, 1);
+  return sprite;
+}
+
+function makeRemoteAvatar(player) {
+  const color = new THREE.Color(player.color || '#66d9ef').getHex();
+  const group = new THREE.Group();
+  group.add(box(0.55, 0.9, 0.32, color, 0, 0.85, 0));
+  group.add(box(0.42, 0.42, 0.42, 0xf0c7a0, 0, 1.55, 0));
+  group.add(box(0.18, 0.75, 0.2, color, -0.45, 0.85, 0));
+  group.add(box(0.18, 0.75, 0.2, color, 0.45, 0.85, 0));
+  group.add(box(0.2, 0.75, 0.22, 0x283342, -0.16, 0.12, 0));
+  group.add(box(0.2, 0.75, 0.22, 0x283342, 0.16, 0.12, 0));
+  group.add(labelSprite(player.name || 'Student', player.color || '#66d9ef'));
+  group.userData.target = new THREE.Vector3();
+  scene.add(group);
+  return group;
+}
+
+function upsertRemotePlayer(player) {
+  if (!player || player.id === localPlayerId) return;
+  let entry = remotePlayers.get(player.id);
+  if (!entry) {
+    entry = { player, group: makeRemoteAvatar(player), target: new THREE.Vector3(), mode: 'survival' };
+    remotePlayers.set(player.id, entry);
+  }
+  entry.player = { ...entry.player, ...player };
+  if (player.transform) {
+    entry.target.set(player.transform.x, player.transform.y - PLAYER_H, player.transform.z);
+    entry.group.position.copy(entry.target);
+    entry.group.rotation.y = player.transform.yaw || 0;
+  }
+  paintStudentList();
+}
+
+function removeRemotePlayer(id) {
+  const entry = remotePlayers.get(id);
+  if (!entry) return;
+  scene.remove(entry.group);
+  remotePlayers.delete(id);
+  paintStudentList();
+}
+
+function paintStudentList() {
+  if (!IS_TEACHER) return;
+  const students = [...remotePlayers.values()].filter(e => !e.player.teacher);
+  studentList.textContent = '';
+  if (!students.length) { studentList.textContent = 'No students yet'; return; }
+  for (const e of students) {
+    const row = document.createElement('div');
+    row.className = 'studentRow';
+    const name = document.createElement('span');
+    name.textContent = e.player.name || 'Student';
+    const btn = document.createElement('button');
+    const isCreative = e.mode === 'creative';
+    btn.textContent = isCreative ? '→ Survival' : '→ Creative';
+    btn.addEventListener('click', () => {
+      e.mode = isCreative ? 'survival' : 'creative';
+      sendRoom({ type: 'teacher:setMode', target: e.player.id, mode: e.mode });
+      paintStudentList();
+    });
+    row.append(name, btn);
+    studentList.append(row);
+  }
+}
+
+function applySharedBlockEdit(x, y, z, type) {
+  if (type !== null && !isBlock(type)) return;
+  const k = key(x, y, z);
+  if (type === null) {
+    world.delete(k);
+    edits.set(k, null);
+    const owned = chunkOwnedBlocks(...chunkOf(x, z)); if (owned) owned.delete(k);
+  } else {
+    world.set(k, type);
+    edits.set(k, type);
+    const owned = chunkOwnedBlocks(...chunkOf(x, z)); if (owned) owned.add(k);
+  }
+  markDirty(x, y, z);
+}
+
+function resetSharedWorld() {
+  edits.clear();
+  for (const ck of [...loaded]) {
+    const [cx, cz] = ck.split(',').map(Number);
+    unloadChunk(cx, cz);
+  }
+  const p = controls.getObject().position;
+  const [pcx, pcz] = chunkOf(p.x, p.z);
+  for (let dx = -1; dx <= 1; dx++)
+    for (let dz = -1; dz <= 1; dz++) genChunk(pcx + dx, pcz + dz);
+  updateAim();
+}
+
+function teleportTo(transform) {
+  const p = controls.getObject().position;
+  p.set(transform.x + (Math.random() - 0.5) * 2, transform.y, transform.z + (Math.random() - 0.5) * 2);
+  velocity.set(0, 0, 0); vUp = 0; airMaxY = p.dot(gUp); wasGrounded = true;
+  const [pcx, pcz] = chunkOf(p.x, p.z);
+  for (let dx = -1; dx <= 1; dx++)
+    for (let dz = -1; dz <= 1; dz++) genChunk(pcx + dx, pcz + dz);
+}
+
+function handleRoomMessage(message) {
+  if (message.type === 'room:init') {
+    localPlayerId = message.id;
+    multiplayerJoined = true;
+    joinEl.classList.add('hidden');
+    setMpStatus(IS_TEACHER ? 'Teacher host connected' : 'Class world connected');
+    for (const edit of message.edits || []) {
+      const [x, y, z] = edit.key.split(',').map(Number);
+      applySharedBlockEdit(x, y, z, edit.type);
+    }
+    for (const player of message.players || []) upsertRemotePlayer(player);
+    if (IS_TEACHER) { teacherPanel.classList.remove('hidden'); paintStudentList(); }
+  } else if (message.type === 'player:joined') {
+    upsertRemotePlayer(message.player);
+  } else if (message.type === 'player:left') {
+    removeRemotePlayer(message.id);
+  } else if (message.type === 'player:update') {
+    const entry = remotePlayers.get(message.id);
+    if (entry && message.transform) {
+      entry.target.set(message.transform.x, message.transform.y - PLAYER_H, message.transform.z);
+      entry.group.rotation.y = message.transform.yaw || 0;
+    }
+  } else if (message.type === 'block:set') {
+    applySharedBlockEdit(message.x, message.y, message.z, message.type);
+  } else if (message.type === 'world:reset') {
+    resetSharedWorld();
+  } else if (message.type === 'teacher:teleport' && message.transform) {
+    teleportTo(message.transform);
+  } else if (message.type === 'mode:set') {
+    setMode(message.mode === 'creative' ? 'creative' : 'survival');
+  }
+}
+
+function connectMultiplayer(name, teacher = false) {
+  if (!MULTIPLAYER) return;
+  joinMsg.textContent = 'Connecting...';
+  setMpStatus('Connecting to class world...');
+  const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+  ws = new WebSocket(`${proto}//${location.host}/room`);
+  ws.addEventListener('open', () => {
+    ws.send(JSON.stringify({ type: 'join', name, teacher, color: LOCAL_COLOR, transform: localTransform() }));
+  });
+  ws.addEventListener('message', (event) => {
+    let message;
+    try { message = JSON.parse(event.data); } catch { return; }
+    handleRoomMessage(message);
+  });
+  ws.addEventListener('close', () => {
+    multiplayerJoined = false;
+    setMpStatus('Class world disconnected');
+    if (!IS_TEACHER) joinEl.classList.remove('hidden');
+  });
+  ws.addEventListener('error', () => {
+    joinMsg.textContent = 'Could not connect. Make sure the classroom server is running.';
+    setMpStatus('Class world offline');
+  });
+}
+
+function syncMultiplayer(dt) {
+  if (!multiplayerJoined) return;
+  syncT -= dt;
+  if (syncT <= 0) {
+    syncT = 0.1;
+    sendRoom({ type: 'player:update', transform: localTransform() });
+  }
+  for (const entry of remotePlayers.values()) entry.group.position.lerp(entry.target, 1 - Math.exp(-dt / 0.12));
+}
+
+function broadcastBlockEdit(x, y, z, type) {
+  sendRoom({ type: 'block:set', x, y, z, type });
+}
+
+if (MULTIPLAYER) {
+  if (IS_TEACHER) {
+    connectMultiplayer('Teacher', true);
+    teacherPanel.classList.remove('hidden');
+  } else {
+    joinEl.classList.remove('hidden');
+    setMpStatus('Enter your name to join');
+  }
+  joinForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const name = studentNameInput.value.trim();
+    if (!name) { joinMsg.textContent = 'Type your name first.'; return; }
+    connectMultiplayer(name, false);
+  });
+  resetWorldBtn.addEventListener('click', () => {
+    if (confirm('Reset the shared class world for everyone?')) sendRoom({ type: 'teacher:reset' });
+  });
+  teleportAllBtn.addEventListener('click', () => {
+    sendRoom({ type: 'teacher:teleportAll', transform: localTransform() });
+  });
+}
+
+// ============================================================ loop
+let prev = performance.now(), fps = 60, infoT = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  const now = performance.now();
+  const dt = Math.min((now - prev) / 1000, 0.05);
+  prev = now;
+  clock += dt;
+  fps += ((1 / Math.max(dt, 0.0001)) - fps) * 0.1;
+
+  // day/night plus space ambience: sky darkens, stars fade in, gravity weakens with altitude
+  const camY = controls.getObject().position.y;
+  const sf = Math.min(1, Math.max(0, (camY - 30) / 50));
+  const dayAngle = clock * 0.025 + Math.PI / 2;
+  const sunLift = Math.sin(dayAngle);
+  daylight = Math.max(0.08, Math.min(1, (sunLift + 0.25) / 1.25));
+  isNight = daylight < 0.25;
+  const dusk = Math.max(0, 1 - Math.abs(sunLift) * 5) * (1 - sf);
+  skyNow.copy(skyNight).lerp(skyDay, daylight).lerp(skyDusk, dusk * 0.55);
+  scene.background.copy(skyNow).lerp(skySpace, sf);
+  scene.fog.color.copy(scene.background);
+  scene.fog.far = 100 + sf * 540;   // ground: hide streaming edge; altitude: open up for space view
+  stars.material.opacity = Math.max(sf, (1 - daylight) * 0.85);
+  hemi.intensity = 0.25 + daylight * 0.65 + sf * 0.15;
+  sun.intensity = 0.08 + daylight * 0.9;
+  sunOrbitOffset.set(Math.cos(dayAngle) * 80, Math.max(18, sunLift * 110), Math.sin(dayAngle) * 55);
+  skyMoon.position.copy(controls.getObject().position).add(new THREE.Vector3(-145, 128, -255));
+  skyMoon.lookAt(controls.getObject().position);
+  skyMoon.userData.moonMat.opacity = 0.34 + sf * 0.38;
+  skyMoon.userData.craterMat.opacity = 0.28 + sf * 0.22;
+  gEff = 28 - 23 * sf;
+  eatCooldown = Math.max(0, eatCooldown - dt);
+
+  if (controlsActive()) arrowLook(dt);
+  updateGravityFrame(dt);   // pick the up-axis for this frame and orient the camera
+
+  if (dead) {
+    deathTimer -= dt;
+    if (deathTimer <= 0) respawn();
+  } else if (controlsActive()) {
+    const pos = controls.getObject().position;
+    // gravity strength: fixed & controllable on a cube planet, else weakens with altitude
+    const gNow = curPlanet ? PLANET_GRAVITY : gEff;
+    // movement basis lives in the plane perpendicular to gUp
+    const fwd = new THREE.Vector3();
+    camera.getWorldDirection(fwd);
+    fwd.addScaledVector(gUp, -fwd.dot(gUp));
+    if (fwd.lengthSq() < 1e-4) { camera.getWorldDirection(fwd); }   // looking straight up/down: any tangent
+    fwd.normalize();
+    const right = new THREE.Vector3().crossVectors(fwd, gUp).normalize();
+    const move = new THREE.Vector3();
+    if (keys['KeyW']) move.add(fwd);
+    if (keys['KeyS']) move.sub(fwd);
+    if (keys['KeyD']) move.add(right);
+    if (keys['KeyA']) move.sub(right);
+    const wantsMove = move.lengthSq() > 0;
+    const inWater = waterAtPlayer(pos);
+    const sprinting = !flying && !inWater && gameMode === 'survival' && hunger > 6 &&
+      (keys['ControlLeft'] || keys['ControlRight']) && keys['KeyW'] && wantsMove;
+    const targetSpeed = flying ? FLY : inWater ? SWIM : sprinting ? SPRINT : WALK;
+    const desired = new THREE.Vector3();
+    if (move.lengthSq() > 0) desired.copy(move).normalize().multiplyScalar(targetSpeed);
+    const accel = wantsMove ? (inWater ? 9 : grounded(pos) ? 32 : 12) : (inWater ? 7 : grounded(pos) ? 24 : 4);
+    const blend = 1 - Math.exp(-accel * dt);
+    velocity.lerp(desired, blend);
+    velocity.addScaledVector(gUp, -velocity.dot(gUp));
+
+    onGround = false;
+    moveAxis('x', velocity.x * dt, pos);
+    moveAxis('y', velocity.y * dt, pos);
+    moveAxis('z', velocity.z * dt, pos);
+
+    if (flying) {
+      let vy = 0;
+      if (keys['Space']) vy += 1;
+      if (keys['ShiftLeft'] || keys['ShiftRight']) vy -= 1;
+      const d = vy * FLY * dt;
+      moveAxis(upAxis, gUp[upAxis] * d, pos);
+    } else {
+      if (inWater) {
+        if (keys['Space']) vUp = Math.max(vUp, 3.4);
+        vUp -= gNow * 0.23 * dt;
+        vUp = Math.max(vUp, -3.0);
+        vUp *= Math.pow(0.55, dt);
+      } else {
+        if (keys['Space'] && grounded(pos)) vUp = JUMP;
+        vUp -= gNow * dt;
+      }
+      const d = vUp * dt;
+      moveAxis(upAxis, gUp[upAxis] * d, pos);
+      // fall-damage tracking, measured along the current up-axis
+      const g = grounded(pos);
+      const projY = pos.dot(gUp);
+      if (!g) airMaxY = Math.max(airMaxY, projY);
+      if (g && !wasGrounded) {
+        const fall = airMaxY - projY;
+        const feetBlock = world.get(key(
+          Math.floor(pos.x - gUp.x * PLAYER_H), Math.floor(pos.y - gUp.y * PLAYER_H), Math.floor(pos.z - gUp.z * PLAYER_H)));
+        if (gameMode === 'survival' && fall > 4 && feetBlock !== 'water' && !inWater) damagePlayer(Math.floor(fall - 3));
+        airMaxY = projY;
+      }
+      wasGrounded = g;
+    }
+    if (gameMode === 'survival') {
+      const drain = sprinting ? 0.18 : inWater && wantsMove ? 0.09 : wantsMove ? 0.035 : 0.004;
+      hungerTick += drain * dt;
+      if (hungerTick >= 1 && hunger > 0) {
+        hungerTick = 0; hunger--; updateHunger();
+      }
+    }
+    if (pos.y < -30) { if (gameMode === 'survival') die(); else { pos.copy(SPAWN); ensureSpawnChunks(); velocity.set(0, 0, 0); vUp = 0; } }
+    updateAim();
+  }
+
+  streamChunks(2);   // load up to 2 new chunks/frame near the player; unload distant ones
+  flushDirty();      // rebuild any chunk meshes touched by edits/explosions this frame
+
+  // shadow sun follows the player so the shadow frustum always covers the loaded world
+  { const pp = controls.getObject().position;
+    sun.position.set(pp.x + sunOrbitOffset.x, pp.y + sunOrbitOffset.y, pp.z + sunOrbitOffset.z);
+    sun.target.position.set(pp.x, pp.y, pp.z); sun.target.updateMatrixWorld();
+    playerLight.position.set(pp.x, pp.y - 0.3, pp.z);
+    playerLight.intensity = hotbar[currentSlot] === 'torch' ? (isNight || pp.y < 12 ? 1.35 : 0.55) : 0;
+  }
+
+  for (let i = mobs.length - 1; i >= 0; i--) updateMob(mobs[i], dt);
+  spawnTimer -= dt;
+  if (spawnTimer <= 0) {
+    spawnTimer = 4;
+    const pp = controls.getObject().position;
+    if (!isNight && passiveCount() < 16 && mobs.length < MOB_MAX) {
+      const s = surfaceNear(pp, 20, 44);
+      if (s) { const m = spawnPassive(s.x, s.z); m.home = { x: s.x, z: s.z }; m.leash = SIZE; }
+    }
+    const hostileCap = isNight ? 18 : 8;
+    if (gameMode === 'survival' && hostileCount() < hostileCap && mobs.length < MOB_MAX && (isNight || Math.random() < 0.35)) {
+      const s = surfaceNear(pp, isNight ? 18 : 14, isNight ? 36 : 26);
+      if (s) { const m = spawnHostile(s.x, s.z); m.home = { x: s.x, z: s.z }; m.leash = SIZE; }
+    }
+  }
+
+  // survival regen/starvation + hurt flash fade
+  if (gameMode === 'survival' && !dead && hunger >= 18 && health < MAX_HP && clock - lastHurt > 5) {
+    regenTimer -= dt;
+    if (regenTimer <= 0) { regenTimer = 2; health = Math.min(MAX_HP, health + 1); updateHearts(); }
+  }
+  if (gameMode === 'survival' && !dead && hunger <= 0) {
+    starveTick -= dt;
+    if (starveTick <= 0) { starveTick = 3.5; damagePlayer(1); }
+  } else starveTick = 0;
+  if (hurtFlash > 0) { hurtFlash -= dt * 1.5; hurtEl.style.opacity = Math.max(0, hurtFlash); }
+
+  updateParticles(dt);
+  updateArrows(dt);
+  updateBullets(dt);
+  updateFireballs(dt);
+  updateViewmodel(dt);
+  syncMultiplayer(dt);
+
+  infoT += dt;
+  if (infoT > 0.25) {
+    infoT = 0;
+    const p = controls.getObject().position;
+    info.textContent =
+      `${gameMode === 'survival' ? 'SURVIVAL' : 'CREATIVE'}   ${isNight ? 'NIGHT' : 'DAY'}   FPS ${fps.toFixed(0)}\n` +
+      `XYZ ${p.x.toFixed(1)} ${(p.y - PLAYER_H).toFixed(1)} ${p.z.toFixed(1)}\n` +
+      `Mobs ${mobs.length}` + (flying ? '   FLYING' : trackpadMode ? '   TRACKPAD LOOK' : '');
+  }
+
+  if (location.search.includes('norender')) return;
+  renderer.clear();
+  renderer.render(scene, camera);
+  renderer.clearDepth();
+  renderer.render(vmScene, vmCamera);
+}
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+  vmCamera.aspect = innerWidth / innerHeight; vmCamera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+window.__test = () => {
+  const out = { errors: [] };
+  try {
+    out.planets = PLANETS.length;
+    out.platform_block_types = [...new Set([...world.values()])].filter(v => ['moonrock', 'brick', 'snow', 'obsidian', 'grass'].includes(v)).length;
+    out.moon_half_extent = PLANETS[0].H;
+    out.has_cheese_block = TYPES.includes('cheese') && [...world.values()].includes('cheese');
+    out.has_cheese_food = hotbar.includes('cheese_wedge') && !!FOODS.cheese_wedge;
+    out.has_survival_hunger = hunger === MAX_HUNGER && hungerEl != null;
+    out.sky_moon_visible = skyMoon.children.length > 1;
+    out.has_ores = ['coal_ore', 'iron_ore', 'diamond_ore'].every(t => TYPES.includes(t));
+    out.has_work_blocks = ['crafting', 'furnace', 'torch'].every(t => TYPES.includes(t));
+    out.has_day_night = typeof daylight === 'number' && typeof isNight === 'boolean';
+    out.has_surface_props = ['cactus', 'pumpkin'].every(t => TYPES.includes(t));
+    out.has_multiplayer_flags = typeof MULTIPLAYER === 'boolean' && typeof IS_TEACHER === 'boolean';
+    out.has_multiplayer_ui = !!joinEl && !!teacherPanel && !!mpStatus;
+    out.has_shared_block_apply = typeof applySharedBlockEdit === 'function' && typeof broadcastBlockEdit === 'function';
+    out.has_remote_players = remotePlayers instanceof Map;
+    // gravity should point toward the nearest face of a cube planet
+    const moon = PLANETS[0];
+    out.grav_top   = gravityAt(moon.cx, moon.cy + moon.H + 2, moon.cz).down.y === -1;   // standing on top → down is -Y
+    out.grav_side  = gravityAt(moon.cx + moon.H + 2, moon.cy, moon.cz).down.x === -1;   // on +X face → down is -X
+    out.grav_space = gravityAt(0, 60, 0).down.y === -1 && gravityAt(0, 60, 0).planet === null;
+    const types = mobs.map(m => m.kind.name);
+    out.aliens = types.filter(n => n === 'Alien').length;
+    out.birds = types.filter(n => n === 'Bird').length;
+    out.has_dragon_kind = HOSTILE_KINDS.some(k => k.name === 'Dragon');
+    // an alien on Mars should stay on the Mars cube (gravity holds it to the surface)
+    const mars = PLANETS.find(p => p.name === 'Mars');
+    const marsAlien = mobs.find(m => m.kind.name === 'Alien' && m.planet === mars);
+    out.mars_alien_exists = !!marsAlien;
+    if (marsAlien) {
+      for (let i = 0; i < 60; i++) updateMob(marsAlien, 0.05);  // 3s of wandering
+      const p = marsAlien.group.position;
+      const maxOff = Math.max(Math.abs(p.x - mars.cx), Math.abs(p.y - mars.cy), Math.abs(p.z - mars.cz));
+      out.mars_alien_stayed = maxOff <= mars.H + 3;   // still clinging to the cube surface
+    }
+    // a bird should flap + stay airborne
+    const bird = mobs.find(m => m.kind.name === 'Bird');
+    if (bird) {
+      const y0 = bird.group.position.y;
+      for (let i = 0; i < 40; i++) updateMob(bird, 0.05);
+      out.bird_airborne = bird.group.position.y > 5;
+      out.bird_moved = Math.abs(bird.group.position.y - y0) >= 0 && (bird.group.position.x !== 0 || bird.group.position.z !== 0);
+    }
+  } catch (e) { out.errors.push(String(e)); }
+  return out;
+};
+animate();
+</script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+{
+  "name": "mini-minecraft-classroom",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Local classroom multiplayer server for Mini Minecraft.",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.20.0"
+  }
+}
