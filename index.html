@@ -4,181 +4,7 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Mini Minecraft</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100%; overflow: hidden; background: #9fd4ff; font-family: monospace; color: #fff; }
-  canvas { display: block; }
-
-  #crosshair {
-    position: fixed; top: 50%; left: 50%; width: 20px; height: 20px;
-    transform: translate(-50%, -50%); pointer-events: none; z-index: 10;
-  }
-  #crosshair::before, #crosshair::after { content: ""; position: absolute; background: rgba(255,255,255,0.85); }
-  #crosshair::before { left: 9px; top: 0; width: 2px; height: 20px; }
-  #crosshair::after { top: 9px; left: 0; height: 2px; width: 20px; }
-
-  #hud { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); display: flex; gap: 5px; z-index: 10; }
-  .slot {
-    width: 50px; height: 50px; border: 3px solid rgba(0,0,0,0.4);
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    font-size: 10px; text-align: center; line-height: 1.15; text-shadow: 1px 1px 1px #000; position: relative;
-  }
-  .slot .num { position: absolute; top: 1px; left: 3px; font-size: 9px; opacity: 0.85; }
-  .slot .qty { position: absolute; bottom: 1px; right: 3px; font-size: 12px; font-weight: bold; }
-  .slot.active { border-color: #fff; box-shadow: 0 0 0 1px #000; }
-
-  #mineBar {
-    position: fixed; top: calc(50% + 18px); left: 50%; transform: translateX(-50%);
-    width: 60px; height: 6px; border: 1px solid rgba(0,0,0,0.7); z-index: 10; display: none;
-    background: rgba(0,0,0,0.4);
-  }
-  #mineBar > i { display: block; height: 100%; width: 0%; background: #e8e8e8; }
-
-  #hearts {
-    position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%); z-index: 10;
-    font-size: 22px; letter-spacing: 3px; display: none; text-shadow: 1px 1px 2px #000;
-  }
-  #hunger {
-    position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%); z-index: 10;
-    font-size: 18px; letter-spacing: 3px; display: none; text-shadow: 1px 1px 2px #000;
-  }
-
-  #info {
-    position: fixed; top: 12px; left: 12px; z-index: 10; font-size: 12px; line-height: 1.5;
-    background: rgba(0,0,0,0.4); padding: 5px 9px; border-radius: 3px; white-space: pre;
-  }
-
-  #hurt {
-    position: fixed; inset: 0; z-index: 9; pointer-events: none; opacity: 0;
-    background: radial-gradient(circle, rgba(150,0,0,0) 35%, rgba(150,0,0,0.65) 100%);
-  }
-  #prompt {
-    position: fixed; bottom: 110px; left: 50%; transform: translateX(-50%); z-index: 10;
-    font-size: 14px; background: rgba(0,0,0,0.55); padding: 6px 12px; border-radius: 4px; display: none;
-  }
-
-  #overlay, #menu, #death {
-    position: fixed; inset: 0; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; background: rgba(0,0,0,0.6); text-align: center;
-  }
-  #overlay, #menu { z-index: 20; }
-  #death { z-index: 25; background: rgba(60,0,0,0.6); }
-  #death h1 { font-size: 46px; color: #d33; letter-spacing: 3px; }
-  #death p { margin-top: 10px; opacity: 0.85; }
-  #overlay { cursor: pointer; }
-  #overlay h1 { font-size: 34px; margin-bottom: 16px; letter-spacing: 3px; }
-  #overlay p { font-size: 13px; line-height: 1.9; opacity: 0.9; }
-  .hidden { display: none !important; }
-
-  #menu h2 { font-size: 22px; margin-bottom: 14px; letter-spacing: 2px; }
-  #menuGrid { display: grid; grid-template-columns: repeat(8, 56px); gap: 8px; }
-  .tile {
-    width: 56px; height: 56px; border: 2px solid rgba(255,255,255,0.25); cursor: pointer;
-    display: flex; align-items: flex-end; justify-content: center; padding-bottom: 3px;
-    font-size: 9px; text-shadow: 1px 1px 1px #000;
-  }
-  .tile:hover { border-color: #fff; }
-  #menu .hint { margin-top: 14px; font-size: 12px; opacity: 0.8; }
-
-  /* ---- survival inventory / crafting / furnace ---- */
-  #inv, #furnaceUI {
-    position: fixed; inset: 0; z-index: 22; display: none;
-    align-items: center; justify-content: center; background: rgba(0,0,0,0.55);
-  }
-  #inv.open, #furnaceUI.open { display: flex; }
-  .panel {
-    background: rgba(20,24,30,0.97); border: 2px solid rgba(255,255,255,0.22);
-    padding: 16px 18px; border-radius: 7px; box-shadow: 0 8px 40px rgba(0,0,0,0.5);
-  }
-  .panel h2 { font-size: 15px; margin-bottom: 12px; letter-spacing: 2px; }
-  .panel .hint { margin-top: 12px; font-size: 11px; opacity: 0.65; }
-  .grid { display: grid; gap: 4px; }
-  .islot {
-    width: 46px; height: 46px; border: 2px solid rgba(0,0,0,0.5);
-    background: rgba(255,255,255,0.05); position: relative; cursor: pointer; user-select: none;
-  }
-  .islot:hover { border-color: rgba(255,255,255,0.6); }
-  .islot .ic { position: absolute; inset: 5px; border-radius: 2px; }
-  .islot .il {
-    position: absolute; top: 1px; left: 0; right: 0; text-align: center; font-size: 7px;
-    line-height: 1.0; opacity: 0.92; text-shadow: 1px 1px 1px #000; z-index: 1; pointer-events: none;
-  }
-  .islot .iq {
-    position: absolute; bottom: 0px; right: 3px; font-size: 13px; font-weight: bold;
-    text-shadow: 1px 1px 1px #000; z-index: 1; pointer-events: none;
-  }
-  .islot.out { border-color: rgba(120,200,120,0.7); }
-  .craftRow { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
-  .sep { font-size: 22px; opacity: 0.7; }
-  .invSection { margin-top: 10px; }
-  .invSection.hot { margin-top: 8px; border-top: 2px solid rgba(255,255,255,0.12); padding-top: 8px; }
-  #cursorItem {
-    position: fixed; width: 40px; height: 40px; pointer-events: none; z-index: 60;
-    display: none; border-radius: 3px; transform: translate(-50%, -50%);
-  }
-  #cursorItem .iq { position: absolute; bottom: -4px; right: -2px; font-size: 13px; font-weight: bold; text-shadow: 1px 1px 1px #000; }
-
-  #join {
-    position: fixed; inset: 0; z-index: 35; display: flex; align-items: center; justify-content: center;
-    background: rgba(0,0,0,0.68); text-align: center;
-  }
-  #joinBox {
-    width: min(360px, calc(100vw - 28px)); background: rgba(18,22,28,0.92);
-    border: 2px solid rgba(255,255,255,0.22); padding: 18px; border-radius: 6px;
-  }
-  #joinBox h2 { font-size: 20px; margin-bottom: 12px; letter-spacing: 1px; }
-  #joinBox input {
-    width: 100%; height: 38px; margin: 6px 0 12px; padding: 0 10px;
-    border: 2px solid rgba(255,255,255,0.3); background: #10151c; color: #fff;
-    font: 15px monospace; outline: none;
-  }
-  #joinBox button, #teacherPanel button {
-    border: 2px solid rgba(255,255,255,0.25); background: #2d6cdf; color: #fff;
-    font: 12px monospace; padding: 8px 10px; cursor: pointer;
-  }
-  #joinBox button:hover, #teacherPanel button:hover { border-color: #fff; }
-  #joinMsg { min-height: 18px; margin-top: 10px; font-size: 12px; color: #ffd36b; }
-
-  #teacherPanel {
-    position: fixed; top: 12px; right: 12px; z-index: 12; width: 230px;
-    background: rgba(0,0,0,0.48); padding: 9px; border-radius: 4px; font-size: 12px;
-  }
-  #teacherPanel h3 { font-size: 13px; margin-bottom: 8px; }
-  #studentList { margin: 8px 0; line-height: 1.5; max-height: 160px; overflow: auto; }
-  .studentRow { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 3px 0; }
-  .studentRow button { flex: 0 0 auto; padding: 3px 7px; }
-  #teacherPanel .actions { display: flex; gap: 6px; }
-  #teacherPanel button { flex: 1; padding: 6px 4px; background: rgba(45,108,223,0.85); }
-  #mpStatus {
-    position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 12;
-    background: rgba(0,0,0,0.42); padding: 5px 9px; border-radius: 3px; font-size: 12px;
-  }
-
-  /* ---- chat ---- */
-  #chatLog {
-    position: fixed; left: 12px; bottom: 130px; z-index: 11; width: min(420px, 60vw);
-    font-size: 12px; line-height: 1.5; pointer-events: none;
-  }
-  #chatLog div { background: rgba(0,0,0,0.4); padding: 1px 6px; border-radius: 3px; margin-top: 2px; width: fit-content; max-width: 100%; word-break: break-word; }
-  #chatInput {
-    position: fixed; left: 12px; bottom: 104px; z-index: 13; width: min(420px, 60vw); height: 28px;
-    display: none; padding: 0 8px; border: 2px solid rgba(255,255,255,0.4);
-    background: rgba(10,12,16,0.92); color: #fff; font: 13px monospace; outline: none;
-  }
-
-  /* ---- player locator ---- */
-  #locator {
-    position: fixed; right: 12px; top: 50%; transform: translateY(-50%); z-index: 12;
-    display: none; flex-direction: column; gap: 4px; font-size: 12px; max-width: 190px;
-  }
-  #locator .lrow {
-    display: flex; align-items: center; gap: 7px; background: rgba(0,0,0,0.42);
-    padding: 3px 8px; border-radius: 4px; border-left: 3px solid #66d9ef;
-  }
-  #locator .larrow { font-size: 15px; display: inline-block; width: 14px; text-align: center; }
-  #locator .lname { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  #locator .ldist { opacity: 0.8; font-size: 11px; }
-</style>
+<link rel="stylesheet" href="styles.css" />
 </head>
 <body>
 <div id="crosshair"></div>
@@ -271,6 +97,7 @@
 
 <script type="module">
 import * as THREE from 'three';
+import { SEA, rand, smooth2, rand3, smooth3, isDesert, heightAt, surfaceY } from './shared/worldgen.js';
 
 const TAU = Math.PI * 2;
 const urlParams = new URLSearchParams(location.search);
@@ -756,34 +583,9 @@ function flushDirty() {
 }
 
 // ============================================================ terrain generation
-function rand(x, z) { const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return s - Math.floor(s); }
-function smooth2(x, z) {
-  const xi = Math.floor(x), zi = Math.floor(z), xf = x - xi, zf = z - zi;
-  const u = xf * xf * (3 - 2 * xf), v = zf * zf * (3 - 2 * zf);
-  const a = rand(xi, zi), b = rand(xi + 1, zi), c = rand(xi, zi + 1), d = rand(xi + 1, zi + 1);
-  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
-}
-function rand3(x, y, z) { const s = Math.sin(x * 12.9 + y * 78.2 + z * 37.7) * 43758.5; return s - Math.floor(s); }
-function smooth3(x, y, z) {
-  const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
-  const xf = x - xi, yf = y - yi, zf = z - zi;
-  const u = xf * xf * (3 - 2 * xf), v = yf * yf * (3 - 2 * yf), w = zf * zf * (3 - 2 * zf);
-  const L = (a, b, t) => a + (b - a) * t;
-  return L(
-    L(L(rand3(xi, yi, zi), rand3(xi + 1, yi, zi), u), L(rand3(xi, yi + 1, zi), rand3(xi + 1, yi + 1, zi), u), v),
-    L(L(rand3(xi, yi, zi + 1), rand3(xi + 1, yi, zi + 1), u), L(rand3(xi, yi + 1, zi + 1), rand3(xi + 1, yi + 1, zi + 1), u), v), w);
-}
-
-const SIZE = 40, SEA = 7;
-// low-frequency biome field: >0.55 → desert (sand, low rolling hills), else plains/grass
-function biomeAt(x, z) { return smooth2(x / 140 + 50, z / 140 + 50); }
-function isDesert(x, z) { return biomeAt(x, z) > 0.55; }
-function heightAt(x, z) {
-  const n = smooth2(x / 22, z / 22) * 1.0 + smooth2(x / 9, z / 9) * 0.35;
-  const amp = isDesert(x, z) ? 9 : 16;   // deserts: lower, gentler rolling hills
-  return Math.floor(6 + n / 1.35 * amp);
-}
-function surfaceY(x, z) { return heightAt(x, z) + 1; }
+// Deterministic terrain primitives live in shared/worldgen.js so the server's
+// mob spawning uses byte-identical height/biome math (see imports at top).
+const SIZE = 40;   // client-only: default mob roam-leash radius
 
 // ---- chunked, effectively-infinite world ----
 const CHUNK = 16, CHUNK_RADIUS = 7;    // load radius in chunks (Chebyshev/square)
@@ -2739,8 +2541,11 @@ function teleportTo(transform) {
     for (let dz = -1; dz <= 1; dz++) genChunk(pcx + dx, pcz + dz);
 }
 
-function handleRoomMessage(message) {
-  if (message.type === 'room:init') {
+// Inbound message dispatch: type -> handler. Split into "room" (presence,
+// world, teacher) and "combat" (mobs, damage, loot) tables purely for
+// readability; both are merged for lookup. Unknown types are ignored.
+const roomMessageHandlers = {
+  'room:init'(message) {
     localPlayerId = message.id;
     multiplayerJoined = true;
     joinEl.classList.add('hidden');
@@ -2752,34 +2557,48 @@ function handleRoomMessage(message) {
     for (const player of message.players || []) upsertRemotePlayer(player);
     syncNetMobs(message.mobs || []);
     if (IS_TEACHER) { teacherPanel.classList.remove('hidden'); paintStudentList(); }
-  } else if (message.type === 'player:joined') {
-    upsertRemotePlayer(message.player);
-  } else if (message.type === 'player:left') {
-    removeRemotePlayer(message.id);
-  } else if (message.type === 'player:update') {
+  },
+  'player:joined'(message) { upsertRemotePlayer(message.player); },
+  'player:left'(message) { removeRemotePlayer(message.id); },
+  'player:update'(message) {
     const entry = remotePlayers.get(message.id);
     if (entry && message.transform) {
       entry.target.set(message.transform.x, message.transform.y - PLAYER_H, message.transform.z);
       entry.group.rotation.y = message.transform.yaw || 0;
     }
-  } else if (message.type === 'block:set') {
+  },
+  'block:set'(message) {
+    // guard against a malformed edit silently corrupting the world Map
+    if (![message.x, message.y, message.z].every(Number.isFinite)) return;
     applySharedBlockEdit(message.x, message.y, message.z, message.type);
-  } else if (message.type === 'world:reset') {
-    resetSharedWorld();
-  } else if (message.type === 'teacher:teleport' && message.transform) {
-    teleportTo(message.transform);
-  } else if (message.type === 'mode:set') {
-    setMode(message.mode === 'creative' ? 'creative' : 'survival');
-  } else if (message.type === 'chat') {
+  },
+  'world:reset'() { resetSharedWorld(); },
+  'teacher:teleport'(message) { if (message.transform) teleportTo(message.transform); },
+  'mode:set'(message) { setMode(message.mode === 'creative' ? 'creative' : 'survival'); },
+  chat(message) {
     const e = remotePlayers.get(message.id);
     const nm = message.name || (e && e.player.name) || 'Player';
     const col = message.color || (e && e.player.color) || '#9fd4ff';
     addChatLine(nm, message.text, col);
-  } else if (message.type === 'system') {
-    addChatLine(null, message.text);
-  } else {
-    handleCombatMessage(message);
-  }
+  },
+  system(message) { addChatLine(null, message.text); },
+};
+
+const combatMessageHandlers = {
+  'mob:sync'(message) { syncNetMobs(message.mobs || []); },
+  'mob:hurt'(message) { flashNetMob(message.id); },
+  'mob:dead'(message) {
+    const k = KIND_BY_NAME[message.kind];
+    spawnParticles(message.x - 0.5, message.y, message.z - 0.5, k ? k.body : 0x888888, 14);
+    removeNetMob(message.id);
+  },
+  hurt(message) { applyServerHurt(message); },
+  loot(message) { for (const [id, n] of (message.items || [])) addToInventory(id, n); },
+};
+
+function handleRoomMessage(message) {
+  const handler = roomMessageHandlers[message.type] || combatMessageHandlers[message.type];
+  if (handler) handler(message);
 }
 
 function connectMultiplayer(name, teacher = false) {
@@ -2894,17 +2713,6 @@ function applyServerHurt(msg) {
   if (typeof msg.pvp === 'string') lastHitBy = msg.pvp;
   hurtByMob(msg.dmg, { x: msg.fromX, z: msg.fromZ });
 }
-function handleCombatMessage(message) {
-  if (message.type === 'mob:sync') syncNetMobs(message.mobs || []);
-  else if (message.type === 'mob:hurt') flashNetMob(message.id);
-  else if (message.type === 'mob:dead') {
-    const k = KIND_BY_NAME[message.kind];
-    spawnParticles(message.x - 0.5, message.y, message.z - 0.5, k ? k.body : 0x888888, 14);
-    removeNetMob(message.id);
-  } else if (message.type === 'hurt') applyServerHurt(message);
-  else if (message.type === 'loot') { for (const [id, n] of (message.items || [])) addToInventory(id, n); }
-}
-
 // ============================================================ chat
 const chatLogEl = document.getElementById('chatLog');
 const chatInputEl = document.getElementById('chatInput');
@@ -3243,10 +3051,10 @@ window.__test = () => {
     // inventory model
     out.has_backpack = store.length === 27 && typeof addToInventory === 'function';
     // ---- multiplayer combat plumbing ----
-    out.has_combat_fns = [nearestPlayerHit, attackPlayer, attackRemoteMob, handleCombatMessage, syncNetMobs].every(f => typeof f === 'function');
+    out.has_combat_fns = [nearestPlayerHit, attackPlayer, attackRemoteMob, handleRoomMessage, syncNetMobs].every(f => typeof f === 'function');
     syncNetMobs([{ id: 'tst', kind: 'Zombie', x: 0, y: 8, z: 0, yaw: 0, hp: 16, fuse: 0 }]);
     out.net_mob_spawns = netMobs.has('tst');
-    handleCombatMessage({ type: 'mob:dead', id: 'tst', x: 0, y: 8, z: 0, kind: 'Zombie' });
+    handleRoomMessage({ type: 'mob:dead', id: 'tst', x: 0, y: 8, z: 0, kind: 'Zombie' });
     out.net_mob_removed = !netMobs.has('tst');
     out.has_chat = typeof openChat === 'function' && typeof addChatLine === 'function';
     out.has_locator = typeof updateLocator === 'function';

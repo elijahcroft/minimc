@@ -1,0 +1,6 @@
+node_modules/
+.playwright-mcp/
+*.bak
+# Legacy/hand-tuned files kept in their existing compact style:
+styles.css
+server.js

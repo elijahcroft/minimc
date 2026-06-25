@@ -2,12 +2,22 @@
   "name": "mini-minecraft-classroom",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "description": "Local classroom multiplayer server for Mini Minecraft.",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "test": "node --test",
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{js,css,json}\""
   },
   "dependencies": {
     "ws": "^8.20.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0",
+    "prettier": "^3.0.0"
   }
 }

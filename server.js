@@ -1,11 +1,30 @@
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
-const os = require('os');
-const { WebSocket, WebSocketServer } = require('ws');
+import http from 'http';
+import fs from 'fs';
+import path from 'path';
+import os from 'os';
+import { fileURLToPath } from 'url';
+import { WebSocket, WebSocketServer } from 'ws';
+import { SEA, heightAt, surfaceY } from './shared/worldgen.js';
+import { sanitizeName, safeNumber, normalizeTransform, normalizeBlock } from './shared/protocol.js';
 
-const PORT = Number(process.env.PORT || 8099);
-const ROOT = __dirname;
+// ============================================================ config
+const CONFIG = {
+  port: Number(process.env.PORT || 8099),
+  tick: 0.1,            // simulation step (seconds) → 10 Hz
+  syncEvery: 2,         // broadcast mob positions every N ticks (~5 Hz)
+  mob: {
+    perPlayer: 8,       // target population scales with player count …
+    cap: 40,            // … up to this hard ceiling
+    spawnChance: 0.5,   // chance per tick to add a mob while under target
+    hostileShare: 0.5,  // keep at most this fraction of the target hostile
+    hostileBias: 0.7,   // when spawning under the hostile target, odds it's hostile
+    spawnMin: 16, spawnMax: 42,  // spawn annulus radius around a player
+    despawnDist: 90,    // mobs farther than this from every player may despawn
+  },
+  attack: { mobRange: 6, pvpRange: 5, mobMaxDmg: 50, pvpMaxDmg: 20 },
+};
+
+const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const players = new Map();
 const blockEdits = new Map();
 let nextId = 1;
@@ -38,53 +57,6 @@ function sendToId(playerId, message) {
   }
 }
 
-function sanitizeName(value) {
-  const clean = String(value || '').replace(/[^\w .-]/g, '').trim().slice(0, 18);
-  return clean || 'Student';
-}
-
-function safeNumber(value, fallback = 0) {
-  return Number.isFinite(value) ? value : fallback;
-}
-
-function normalizeTransform(value) {
-  const v = value && typeof value === 'object' ? value : {};
-  return {
-    x: safeNumber(v.x),
-    y: safeNumber(v.y),
-    z: safeNumber(v.z),
-    yaw: safeNumber(v.yaw),
-    pitch: safeNumber(v.pitch)
-  };
-}
-
-function normalizeBlock(message) {
-  const x = Math.trunc(Number(message.x));
-  const y = Math.trunc(Number(message.y));
-  const z = Math.trunc(Number(message.z));
-  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return null;
-  const type = message.type == null ? null : String(message.type).slice(0, 40);
-  return { x, y, z, type };
-}
-
-// ============================================================ terrain (mirrors client world gen)
-function rand(x, z) { const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453; return s - Math.floor(s); }
-function smooth2(x, z) {
-  const xi = Math.floor(x), zi = Math.floor(z), xf = x - xi, zf = z - zi;
-  const u = xf * xf * (3 - 2 * xf), v = zf * zf * (3 - 2 * zf);
-  const a = rand(xi, zi), b = rand(xi + 1, zi), c = rand(xi, zi + 1), d = rand(xi + 1, zi + 1);
-  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
-}
-const SEA = 7;
-function biomeAt(x, z) { return smooth2(x / 140 + 50, z / 140 + 50); }
-function isDesert(x, z) { return biomeAt(x, z) > 0.55; }
-function heightAt(x, z) {
-  const n = smooth2(x / 22, z / 22) * 1.0 + smooth2(x / 9, z / 9) * 0.35;
-  const amp = isDesert(x, z) ? 9 : 16;
-  return Math.floor(6 + n / 1.35 * amp);
-}
-function surfaceY(x, z) { return heightAt(x, z) + 1; }
-
 // ============================================================ server-authoritative mobs
 const PASSIVE = [
   { name: 'Pig', hp: 10, speed: 2.0 },
@@ -105,8 +77,8 @@ const MOB_LOOT = {
 const TAU = Math.PI * 2;
 const mobs = new Map();
 let nextMobId = 1;
-const TICK = 0.1;                 // 10 Hz simulation
-const SYNC_EVERY = 2;             // broadcast positions every 2 ticks (~5 Hz)
+const TICK = CONFIG.tick;
+const SYNC_EVERY = CONFIG.syncEvery;
 let tickCount = 0;
 
 function survivalPlayers() {
@@ -125,8 +97,9 @@ function spawnMob(hostile) {
   if (!anchor) return;
   // pick dry land in an annulus around a player
   let x, z;
+  const { spawnMin, spawnMax } = CONFIG.mob;
   for (let tries = 0; tries < 8; tries++) {
-    const ang = Math.random() * TAU, r = 16 + Math.random() * 26;
+    const ang = Math.random() * TAU, r = spawnMin + Math.random() * (spawnMax - spawnMin);
     x = Math.round(anchor.transform.x + Math.cos(ang) * r);
     z = Math.round(anchor.transform.z + Math.sin(ang) * r);
     if (heightAt(x, z) > SEA) break;
@@ -160,16 +133,17 @@ function tickMobs() {
   const alive = survivalPlayers();
   // spawn toward a target population scaled by player count
   if (alive.length) {
-    const target = Math.min(40, alive.length * 8);
+    const mc = CONFIG.mob;
+    const target = Math.min(mc.cap, alive.length * mc.perPlayer);
     let hostileN = 0; for (const m of mobs.values()) if (m.hostile) hostileN++;
-    if (mobs.size < target && Math.random() < 0.5) {
-      const wantHostile = hostileN < target * 0.5;
-      spawnMob(wantHostile && Math.random() < 0.7);
+    if (mobs.size < target && Math.random() < mc.spawnChance) {
+      const wantHostile = hostileN < target * mc.hostileShare;
+      spawnMob(wantHostile && Math.random() < mc.hostileBias);
     }
   }
   for (const m of mobs.values()) {
     // despawn if far from every player
-    if (!nearestPlayerTo(m.x, m.z, 90)) { if (Math.random() < 0.02) mobs.delete(m.id); continue; }
+    if (!nearestPlayerTo(m.x, m.z, CONFIG.mob.despawnDist)) { if (Math.random() < 0.02) mobs.delete(m.id); continue; }
 
     let chasing = false;
     if (m.hostile && m.detect) {
@@ -235,6 +209,106 @@ setInterval(() => {
   if (tickCount % SYNC_EVERY === 0) broadcast({ type: 'mob:sync', mobs: mobSnapshot() });
 }, TICK * 1000);
 
+// ============================================================ websocket message handlers
+// Map of message type -> handler(ws, message, player). `player` is null only for
+// 'join' (which creates it); every other handler is dispatched after the
+// connection's player record is confirmed to exist.
+const messageHandlers = {
+  join(ws, message) {
+    ws.isTeacher = !!message.teacher;
+    const player = {
+      id: ws.playerId,
+      name: ws.isTeacher ? 'Teacher' : sanitizeName(message.name),
+      teacher: ws.isTeacher,
+      color: String(message.color || '#66d9ef').slice(0, 16),
+      transform: normalizeTransform(message.transform),
+      alive: true
+    };
+    players.set(ws.playerId, player);
+    sendJson(ws, {
+      type: 'room:init',
+      id: ws.playerId,
+      players: [...players.values()],
+      edits: [...blockEdits.entries()].map(([k, type]) => ({ key: k, type })),
+      mobs: mobSnapshot()
+    });
+    broadcast({ type: 'player:joined', player }, ws);
+    broadcast({ type: 'system', text: `${player.name} joined` }, ws);
+  },
+
+  'player:update'(ws, message, player) {
+    player.transform = normalizeTransform(message.transform);
+    broadcast({ type: 'player:update', id: ws.playerId, transform: player.transform }, ws);
+  },
+
+  'block:set'(ws, message) {
+    const block = normalizeBlock(message);
+    if (!block) return;
+    const k = `${block.x},${block.y},${block.z}`;
+    blockEdits.set(k, block.type);
+    broadcast({ type: 'block:set', ...block }, ws);
+  },
+
+  chat(ws, message, player) {
+    const text = String(message.text || '').slice(0, 160);
+    if (!text.trim()) return;
+    broadcast({ type: 'chat', id: ws.playerId, name: player.name, color: player.color, text }, ws);
+  },
+
+  'mob:attack'(ws, message, player) {
+    const m = mobs.get(String(message.id));
+    if (!m) return;
+    const dist = Math.hypot(player.transform.x - m.x, player.transform.z - m.z);
+    if (dist > CONFIG.attack.mobRange) return;
+    m.hp -= Math.max(0, Math.min(CONFIG.attack.mobMaxDmg, Number(message.dmg) || 0));
+    const dx = safeNumber(message.dx), dz = safeNumber(message.dz);   // knockback
+    m.x += dx * 0.5; m.z += dz * 0.5;
+    if (m.hp <= 0) killMob(m.id, ws.playerId);
+    else broadcast({ type: 'mob:hurt', id: m.id, hp: m.hp });
+  },
+
+  'pvp:attack'(ws, message, player) {
+    const target = players.get(String(message.target));
+    if (!target || target.teacher || target.id === ws.playerId) return;
+    const dist = Math.hypot(player.transform.x - target.transform.x, player.transform.z - target.transform.z);
+    if (dist > CONFIG.attack.pvpRange) return;
+    const dmg = Math.max(0, Math.min(CONFIG.attack.pvpMaxDmg, Number(message.dmg) || 0));
+    sendToId(target.id, { type: 'hurt', dmg, fromX: player.transform.x, fromZ: player.transform.z, pvp: player.name });
+  },
+
+  died(ws, message, player) {
+    player.alive = false;
+    const by = message.by ? ` (${String(message.by).slice(0, 18)})` : '';
+    broadcast({ type: 'system', text: `${player.name} died${by}` });
+  },
+
+  respawn(ws, message, player) {
+    player.alive = true;
+    if (message.transform) player.transform = normalizeTransform(message.transform);
+  },
+
+  'teacher:reset'(ws) {
+    if (!ws.isTeacher) return;
+    blockEdits.clear();
+    broadcast({ type: 'world:reset' });
+    sendJson(ws, { type: 'world:reset' });
+  },
+
+  'teacher:teleportAll'(ws, message) {
+    if (!ws.isTeacher) return;
+    broadcast({ type: 'teacher:teleport', transform: normalizeTransform(message.transform) }, ws);
+  },
+
+  'teacher:setMode'(ws, message) {
+    if (!ws.isTeacher) return;
+    const targetId = String(message.target);
+    const mode = message.mode === 'creative' ? 'creative' : 'survival';
+    for (const client of wss.clients) {
+      if (client.playerId === targetId) sendJson(client, { type: 'mode:set', mode });
+    }
+  },
+};
+
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
   const requested = url.pathname === '/' ? '/index.html' : decodeURIComponent(url.pathname);
@@ -269,110 +343,13 @@ wss.on('connection', (ws) => {
     try { message = JSON.parse(raw); } catch { return; }
     if (!message || typeof message.type !== 'string') return;
 
-    if (message.type === 'join') {
-      ws.isTeacher = !!message.teacher;
-      const player = {
-        id,
-        name: ws.isTeacher ? 'Teacher' : sanitizeName(message.name),
-        teacher: ws.isTeacher,
-        color: String(message.color || '#66d9ef').slice(0, 16),
-        transform: normalizeTransform(message.transform),
-        alive: true
-      };
-      players.set(id, player);
-      sendJson(ws, {
-        type: 'room:init',
-        id,
-        players: [...players.values()],
-        edits: [...blockEdits.entries()].map(([k, type]) => ({ key: k, type })),
-        mobs: mobSnapshot()
-      });
-      broadcast({ type: 'player:joined', player }, ws);
-      broadcast({ type: 'system', text: `${player.name} joined` }, ws);
-      return;
-    }
+    const handler = messageHandlers[message.type];
+    if (!handler) return;
+    if (message.type === 'join') { handler(ws, message, null); return; }
 
     const player = players.get(id);
     if (!player) return;
-
-    if (message.type === 'player:update') {
-      player.transform = normalizeTransform(message.transform);
-      broadcast({ type: 'player:update', id, transform: player.transform }, ws);
-      return;
-    }
-
-    if (message.type === 'block:set') {
-      const block = normalizeBlock(message);
-      if (!block) return;
-      const k = `${block.x},${block.y},${block.z}`;
-      blockEdits.set(k, block.type);
-      broadcast({ type: 'block:set', ...block }, ws);
-      return;
-    }
-
-    if (message.type === 'chat') {
-      const text = String(message.text || '').slice(0, 160);
-      if (!text.trim()) return;
-      broadcast({ type: 'chat', id, name: player.name, color: player.color, text }, ws);
-      return;
-    }
-
-    if (message.type === 'mob:attack') {
-      const m = mobs.get(String(message.id));
-      if (!m) return;
-      const dist = Math.hypot(player.transform.x - m.x, player.transform.z - m.z);
-      if (dist > 6) return;                       // basic range check
-      m.hp -= Math.max(0, Math.min(50, Number(message.dmg) || 0));
-      // knockback
-      const dx = safeNumber(message.dx), dz = safeNumber(message.dz);
-      m.x += dx * 0.5; m.z += dz * 0.5;
-      if (m.hp <= 0) killMob(m.id, id);
-      else broadcast({ type: 'mob:hurt', id: m.id, hp: m.hp });
-      return;
-    }
-
-    if (message.type === 'pvp:attack') {
-      const target = players.get(String(message.target));
-      if (!target || target.teacher || target.id === id) return;
-      const dist = Math.hypot(player.transform.x - target.transform.x, player.transform.z - target.transform.z);
-      if (dist > 5) return;
-      const dmg = Math.max(0, Math.min(20, Number(message.dmg) || 0));
-      sendToId(target.id, { type: 'hurt', dmg, fromX: player.transform.x, fromZ: player.transform.z, pvp: player.name });
-      return;
-    }
-
-    if (message.type === 'died') {
-      player.alive = false;
-      const by = message.by ? ` (${String(message.by).slice(0, 18)})` : '';
-      broadcast({ type: 'system', text: `${player.name} died${by}` });
-      return;
-    }
-
-    if (message.type === 'respawn') {
-      player.alive = true;
-      if (message.transform) player.transform = normalizeTransform(message.transform);
-      return;
-    }
-
-    if (message.type === 'teacher:reset' && ws.isTeacher) {
-      blockEdits.clear();
-      broadcast({ type: 'world:reset' });
-      sendJson(ws, { type: 'world:reset' });
-      return;
-    }
-
-    if (message.type === 'teacher:teleportAll' && ws.isTeacher) {
-      broadcast({ type: 'teacher:teleport', transform: normalizeTransform(message.transform) }, ws);
-      return;
-    }
-
-    if (message.type === 'teacher:setMode' && ws.isTeacher) {
-      const targetId = String(message.target);
-      const mode = message.mode === 'creative' ? 'creative' : 'survival';
-      for (const client of wss.clients) {
-        if (client.playerId === targetId) sendJson(client, { type: 'mode:set', mode });
-      }
-    }
+    handler(ws, message, player);
   });
 
   ws.on('close', () => {
@@ -384,12 +361,12 @@ wss.on('connection', (ws) => {
   });
 });
 
-server.listen(PORT, '0.0.0.0', () => {
+server.listen(CONFIG.port, '0.0.0.0', () => {
   const urls = [];
   for (const info of Object.values(os.networkInterfaces()).flat()) {
-    if (info && info.family === 'IPv4' && !info.internal) urls.push(`http://${info.address}:${PORT}/`);
+    if (info && info.family === 'IPv4' && !info.internal) urls.push(`http://${info.address}:${CONFIG.port}/`);
   }
-  console.log(`Mini Minecraft classroom server running on http://localhost:${PORT}/`);
+  console.log(`Mini Minecraft classroom server running on http://localhost:${CONFIG.port}/`);
   if (urls.length) {
     console.log('Student join URLs:');
     for (const url of urls) console.log(`  ${url}`);
