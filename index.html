@@ -23,6 +23,7 @@
     WASD — move &nbsp;·&nbsp; Mouse <b>or</b> Arrow keys — look &nbsp;·&nbsp; Tab — trackpad look<br>
     Space — jump &nbsp;·&nbsp; F — fly (creative only) &nbsp;·&nbsp; G — toggle Creative / Survival<br>
     Hold Left click — mine / attack &nbsp;·&nbsp; Right click — place / eat / use &nbsp;·&nbsp; 1–9 / scroll — hotbar &nbsp;·&nbsp; E — inventory &amp; crafting<br>
+    R — sort backpack &nbsp;·&nbsp; B — party mode &nbsp;·&nbsp; Middle click — copy block (creative)<br>
     Survival: better tools mine faster · craft tools at a crafting table · smelt ore in a furnace · T — chat<br>
     Mobs fight back, hunger drains, food heals, Ctrl sprints, water slows falls &nbsp;·&nbsp; Esc — release mouse
   </p>
@@ -65,9 +66,22 @@
   </div>
 </div>
 
+<div id="chestUI">
+  <div class="panel">
+    <h2>CHEST</h2>
+    <div id="chestGrid" class="grid"></div>
+    <div id="chestBackpack" class="grid invSection"></div>
+    <div id="chestHotbar" class="grid invSection hot"></div>
+    <div class="hint">Click a stack to move it between the chest and your inventory · E / Esc to close</div>
+  </div>
+</div>
+
 <div id="cursorItem"></div>
 
 <div id="death" class="hidden"><h1>YOU DIED</h1><p>respawning…</p></div>
+
+<div id="bossBar" class="hidden"><div id="bossBarName">Boss</div><div id="bossBarOuter"><div id="bossBarFill" style="width:100%"></div></div></div>
+<div id="toast"><div class="toast-title" id="toastTitle"></div><div class="toast-sub" id="toastSub"></div></div>
 
 <div id="join" class="hidden">
   <form id="joinBox">
@@ -113,7 +127,9 @@ scene.fog = new THREE.Fog(0x9fd4ff, 55, 100);   // far ≈ RADIUS*CHUNK*0.9 so t
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+const MAX_PIXEL_RATIO = Math.min(devicePixelRatio, 2);
+let renderPixelRatio = MAX_PIXEL_RATIO;
+renderer.setPixelRatio(renderPixelRatio);
 renderer.autoClear = false;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -177,6 +193,28 @@ const stars = (() => {
 })();
 scene.add(stars);
 
+// ---- weather: rain (point cloud that scrolls downward) ----
+const RAIN_N = 700;
+const rainPos = new Float32Array(RAIN_N * 3);
+const rainXZ = new Float32Array(RAIN_N * 2);
+for (let i = 0; i < RAIN_N; i++) {
+  rainXZ[i*2]   = (Math.random() - 0.5) * 64;
+  rainXZ[i*2+1] = (Math.random() - 0.5) * 64;
+  rainPos[i*3+1] = Math.random() * 36;
+}
+const rainGeo = new THREE.BufferGeometry();
+rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+const rainMat = new THREE.PointsMaterial({ color: 0x99ccee, size: 0.18, transparent: true, opacity: 0.38, sizeAttenuation: true, fog: false });
+const rainSystem = new THREE.Points(rainGeo, rainMat);
+rainSystem.frustumCulled = false;
+rainSystem.visible = false;
+scene.add(rainSystem);
+let weatherPhase = 'clear', weatherTimer = 45 + Math.random() * 75, rainScroll = 0, lightningFlash = 0;
+const skyRain = new THREE.Color(0x6a8aaa);
+// ---- shooting stars ----
+const shootingStars = [];
+let nextStarT = 8 + Math.random() * 14;
+
 const skyMoon = (() => {
   const group = new THREE.Group();
   const moonMat = new THREE.MeshBasicMaterial({ color: 0xd8d8d0, transparent: true, opacity: 0.55, fog: false });
@@ -227,8 +265,33 @@ const BLOCKS = {
   torch:       { name: 'Torch',   color: 0xffb33a, alpha: 0.92, pattern: 'torch' },
   cactus:      { name: 'Cactus',  color: 0x2f8f47, pattern: 'cactus' },
   pumpkin:     { name: 'Pumpkin', color: 0xd97820, pattern: 'pumpkin' },
+  chest:       { name: 'Chest',   color: 0x9b6a32, pattern: 'chest' },
+  door:        { name: 'Door',    color: 0x8a5d2e, pattern: 'door' },
+  trapdoor:    { name: 'Trapdoor',color: 0x8a5d2e, pattern: 'trapdoor' },
+  bed:         { name: 'Bed',     color: 0xc0392b, pattern: 'bed' },
+  sunflower: { name: 'Sunflower', color: 0xffe84a, alpha: 0.92, pattern: 'sunflower' },
+  rose:      { name: 'Rose',      color: 0xe84a4a, alpha: 0.92, pattern: 'rose'      },
+  bluebell:  { name: 'Bluebell', color: 0x6a9eff, alpha: 0.92, pattern: 'bluebell'  },
+  // open states of door/trapdoor — passable + see-through; not shown in the creative menu
+  door_open:     { name: 'Door',    color: 0x8a5d2e, alpha: 0.28, pattern: 'door' },
+  trapdoor_open: { name: 'Trapdoor',color: 0x8a5d2e, alpha: 0.28, pattern: 'trapdoor' },
 };
 const TYPES = Object.keys(BLOCKS);
+// open door/trapdoor states are excluded from the build menu
+const OPEN_TYPES = new Set(['door_open', 'trapdoor_open']);
+// non-solid blocks you can pass through (open doors/trapdoors + the low bed)
+const WALKABLE = new Set(['door_open', 'trapdoor_open', 'bed']);
+const TOGGLE = { door: 'door_open', door_open: 'door', trapdoor: 'trapdoor_open', trapdoor_open: 'trapdoor' };
+// Tier-1 sub-cube shapes (fixed orientation): door = thin slab, trapdoor = thin plate, bed = low slab.
+// Values are min/max corners in [0,1] local cell space.
+const SHAPE = {
+  door:          { mn: [0, 0, 0],    mx: [1, 1, 0.18] },   // thin slab on the north face
+  door_open:     { mn: [0, 0, 0],    mx: [0.18, 1, 1] },   // swung 90° to the west face
+  trapdoor:      { mn: [0, 0.82, 0], mx: [1, 1, 1] },      // flat plate at cell top (stand on it)
+  trapdoor_open: { mn: [0, 0, 0],    mx: [0.18, 1, 1] },   // flipped up against the west face
+  bed:           { mn: [0, 0, 0],    mx: [1, 0.5, 1] },    // low mattress slab
+};
+const THIN_TYPES = new Set(Object.keys(SHAPE));   // emit custom geometry + don't occlude neighbours
 
 // ---- tool tiers: mining speed multiplier + harvest level + tint ----
 const TIERS = {
@@ -288,7 +351,11 @@ const MINE = {
   obsidian:{h:9.0,t:'pick',l:4},
   log:{h:1.4,t:'axe',l:0}, planks:{h:1.4,t:'axe',l:0}, crafting:{h:1.2,t:'axe',l:0},
   pumpkin:{h:0.8,t:'axe',l:0},
+  chest:{h:2.0,t:'axe',l:0}, bed:{h:0.4,t:null,l:0},
+  door:{h:1.6,t:'axe',l:0}, door_open:{h:1.6,t:'axe',l:0},
+  trapdoor:{h:1.4,t:'axe',l:0}, trapdoor_open:{h:1.4,t:'axe',l:0},
   leaves:{h:0.25,t:null,l:0}, glass:{h:0.3,t:null,l:0}, cactus:{h:0.4,t:null,l:0},
+  sunflower:{h:0.05,t:null,l:0}, rose:{h:0.05,t:null,l:0}, bluebell:{h:0.05,t:null,l:0},
   cheese:{h:0.5,t:null,l:0}, torch:{h:0.1,t:null,l:0}, water:{h:99,t:null,l:0},
   bedrock:{h:Infinity,t:'pick',l:9},
 };
@@ -298,13 +365,15 @@ const blockMine = (t) => MINE[t] || { h: 1.0, t: null, l: 0 };
 const DROPS = {
   stone: 'cobblestone', grass: 'dirt', coal_ore: 'coal',
   iron_ore: 'raw_iron', diamond_ore: 'diamond', gold: 'raw_gold',
+  door_open: 'door', trapdoor_open: 'trapdoor',
 };
 const dropOf = (t) => (t in DROPS ? DROPS[t] : t);
 
 const isBlock  = (id) => id in BLOCKS;
 const isTool   = (id) => id in TOOLS;
 const isOpaque = (t)  => t != null && isBlock(t) && BLOCKS[t].alpha == null;
-const isSolid  = (t)  => t != null && isBlock(t) && t !== 'water' && t !== 'torch';
+const PASSABLE = new Set(['water', 'torch', 'sunflower', 'rose', 'bluebell']);
+const isSolid  = (t)  => t != null && isBlock(t) && !PASSABLE.has(t) && !WALKABLE.has(t);
 const isFood   = (id) => id in FOODS;
 const itemDef  = (id) => BLOCKS[id] || TOOLS[id] || FOODS[id] || ITEMS[id];
 const swatch   = (id) => '#' + itemDef(id).color.toString(16).padStart(6, '0');
@@ -335,17 +404,25 @@ function makeTexture(hex, pattern) {
   c.width = c.height = s;
   const ctx = c.getContext('2d');
   const col = new THREE.Color(hex);
-  const rnd = Math.random;
+  const seedBase = ((hex ^ (pattern || '').length * 2654435761) >>> 0) || 1;
+  let seed = seedBase;
+  const rnd = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 0xffffffff;
+  };
   for (let y = 0; y < s; y++) for (let x = 0; x < s; x++) {
     let l = 1 + (rnd() - 0.5) * 0.18;
     switch (pattern) {
       case 'planks':
-        if (y % 5 === 0) l *= 0.7;          // plank seams
-        else if (x === 7) l *= 0.82;        // centre joint
+        if (y % 4 === 0) l *= 0.66;
+        else if (y % 4 === 1) l *= 1.06;
+        if (x === 0 || x === s - 1) l *= 0.88;
+        if (x === 7 || x === 8) l *= 0.76;
         break;
       case 'log':
-        if (x === 0 || x === s - 1) l *= 0.6;     // dark bark edges
-        else if (x % 4 === 1) l *= 0.84;          // vertical grain
+        if (x === 0 || x === s - 1) l *= 0.52;
+        else if (x % 4 === 1) l *= 0.8;
+        else if (x % 4 === 2) l *= 1.05;
         break;
       case 'brick': {
         const off = (Math.floor(y / 4) % 2) ? 4 : 0;
@@ -353,21 +430,24 @@ function makeTexture(hex, pattern) {
         break;
       }
       case 'grass':
-        l = 1 + (rnd() - 0.5) * 0.12;
-        if (rnd() > 0.9) l *= 1.18;         // bright blades
-        else if (rnd() > 0.9) l *= 0.82;
+        l = 0.92 + (rnd() - 0.5) * 0.18;
+        if (y < 4) l *= 1.18;
+        if ((x + y) % 5 === 0) l *= 1.14;
+        else if ((x * 3 + y) % 7 === 0) l *= 0.82;
         break;
       case 'dirt':
-        l = 1 + (rnd() - 0.5) * 0.2;
-        if (rnd() > 0.92) l *= 0.76;        // dark clumps
+        l = 0.95 + (rnd() - 0.5) * 0.22;
+        if ((x + y * 2) % 9 < 2) l *= 0.72;
+        if ((x - y + 16) % 11 === 0) l *= 1.1;
         break;
       case 'stone':
-        l = 1 + (rnd() - 0.5) * 0.1;
-        if (rnd() > 0.95) l *= 0.7;         // dark flecks
+        l = 0.94 + (rnd() - 0.5) * 0.12;
+        if ((x * 5 + y * 3) % 13 < 2) l *= 0.72;
         break;
       case 'cobble':
-        l = 1 + (rnd() - 0.5) * 0.22;
-        if (x % 8 === 0 || y % 8 === 0 || (x + y) % 16 === 0) l *= 0.5;  // mortar grid
+        l = 0.88 + (rnd() - 0.5) * 0.2;
+        if (x % 4 === 0 || y % 4 === 0) l *= 0.58;
+        else if ((x + y) % 5 === 0) l *= 1.14;
         break;
       case 'sand':
         l = 1 + (rnd() - 0.5) * 0.1;
@@ -393,7 +473,8 @@ function makeTexture(hex, pattern) {
         if (rnd() > 0.95) l *= 0.92;
         break;
       case 'water':
-        l = 1 + Math.sin((y + x * 0.3) * 0.9) * 0.06 + (rnd() - 0.5) * 0.05;  // ripples
+        l = 0.9 + Math.sin((y + x * 0.35) * 0.9) * 0.08 + (rnd() - 0.5) * 0.05;
+        if ((x + y) % 6 === 0) l *= 1.08;
         break;
       case 'bedrock': {
         const cell = (Math.floor(x / 2) * 23 + Math.floor(y / 2) * 41) % 6;
@@ -419,8 +500,8 @@ function makeTexture(hex, pattern) {
         break;
       }
       case 'obsidian':
-        l = 1 + (rnd() - 0.5) * 0.25;
-        if (rnd() > 0.93) l *= 1.6;         // purple glints
+        l = 0.84 + (rnd() - 0.5) * 0.22;
+        if ((x * 7 + y * 5) % 17 < 2) l *= 1.5;
         break;
       case 'moonrock':
         l = 1 + (rnd() - 0.5) * 0.1;
@@ -461,12 +542,64 @@ function makeTexture(hex, pattern) {
         if (x % 5 === 0) l *= 0.72;
         if (y === 1 || y === s - 2) l *= 0.82;
         break;
+      case 'chest':
+        l = 1 + (rnd() - 0.5) * 0.1;
+        if (x === 0 || y === 0 || x === s - 1 || y === s - 1) l *= 0.55;  // plank border
+        if (y === 6 || y === 7) l *= 0.5;                                  // lid seam
+        if (x >= 7 && x <= 8 && y >= 6 && y <= 9) l *= 1.5;                // latch
+        break;
+      case 'door':
+        if (x % 5 === 0 || x === s - 1) l *= 0.78;        // vertical planks
+        if (y === 0 || y === s - 1) l *= 0.6;             // top/bottom edge
+        if (y >= 4 && y <= 6 && x >= 3 && x <= 12) l *= 0.7;  // upper panel inset
+        if (x >= 11 && x <= 12 && y >= 8 && y <= 9) l *= 1.6; // knob
+        break;
+      case 'trapdoor':
+        if (x % 5 === 0 || y % 5 === 0) l *= 0.7;         // plank lattice
+        if (x === 0 || y === 0 || x === s - 1 || y === s - 1) l *= 0.6;
+        break;
+      case 'bed':
+        l = 1 + (rnd() - 0.5) * 0.08;
+        if (y < 5) { l *= 0.0; ctx.fillStyle = '#e8e8ec'; ctx.fillRect(x, y, 1, 1); continue; }  // pillow
+        if (y === 5) l *= 0.5;                            // pillow shadow
+        if (x === 0 || x === s - 1 || y === s - 1) l *= 0.6;
+        break;
+      case 'sunflower':
+        l = 1 + (rnd() - 0.5) * 0.12;
+        { const cx2 = 8, cy2 = 6, r2 = Math.hypot(x - cx2, y - cy2);
+          if (r2 < 3) { ctx.fillStyle = '#6a4100'; ctx.fillRect(x, y, 1, 1); continue; }
+          if (r2 < 6.5) l *= 1.3 + (rnd() - 0.5) * 0.2;
+          else if (r2 > 5 && r2 < 8) { ctx.fillStyle = `rgb(${Math.min(255,(col.g*255*l*.9)|0)},${Math.min(255,(col.g*255*l*1.1)|0)},0)`; ctx.fillRect(x,y,1,1); continue; }
+          else l *= 0.5;
+        }
+        break;
+      case 'rose':
+        l = 1 + (rnd() - 0.5) * 0.15;
+        { const cx2 = 8, cy2 = 7, r2 = Math.hypot(x - cx2, y - cy2);
+          if (r2 < 4.5) l *= 1.4;
+          else if (r2 < 7) l *= 0.9;
+          else { ctx.fillStyle = '#2a7a20'; ctx.fillRect(x, y, 1, 1); continue; }
+        }
+        break;
+      case 'bluebell':
+        l = 1 + (rnd() - 0.5) * 0.12;
+        { const petal = Math.floor((Math.atan2(y - 7, x - 8) / Math.PI * 3 + 3) % 3);
+          const r2 = Math.hypot(x - 8, y - 7);
+          if (r2 < 3) { ctx.fillStyle = '#fff'; ctx.fillRect(x, y, 1, 1); continue; }
+          if (r2 < 6.5) l *= petal === 0 ? 1.35 : petal === 1 ? 1.1 : 0.85;
+          else { ctx.fillStyle = '#1c6a20'; ctx.fillRect(x, y, 1, 1); continue; }
+        }
+        break;
     }
     const r = Math.min(255, col.r * 255 * l) | 0;
     const g = Math.min(255, col.g * 255 * l) | 0;
     const b = Math.min(255, col.b * 255 * l) | 0;
     ctx.fillStyle = `rgb(${r},${g},${b})`;
     ctx.fillRect(x, y, 1, 1);
+  }
+  if (pattern === 'grass') {
+    ctx.fillStyle = '#7a5232';
+    for (let y = 12; y < 16; y++) for (let x = 0; x < 16; x++) if ((x + y) % 3 === 0) ctx.fillRect(x, y, 1, 1);
   }
   const t = new THREE.CanvasTexture(c);
   t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
@@ -492,6 +625,24 @@ const key = (x, y, z) => x + ',' + y + ',' + z;
 
 const materials = {};
 for (const t of TYPES) materials[t] = makeMaterial(t);
+const itemPreviewCache = new Map();
+function itemPreviewStyle(id) {
+  if (!id) return 'background:linear-gradient(180deg, rgba(28,33,27,0.94), rgba(14,16,14,0.98));';
+  if (itemPreviewCache.has(id)) return itemPreviewCache.get(id);
+  let style;
+  if (isBlock(id)) {
+    const url = materials[id].map.image.toDataURL();
+    style =
+      `background-color:${swatch(id)};` +
+      `background-image:linear-gradient(180deg, rgba(255,255,255,0.08), rgba(0,0,0,0.16)), url(${url});`;
+  } else {
+    style =
+      `background:radial-gradient(circle at 35% 30%, rgba(255,255,255,0.22), rgba(255,255,255,0) 38%),` +
+      `linear-gradient(180deg, ${swatch(id)}, rgba(0,0,0,0.28));`;
+  }
+  itemPreviewCache.set(id, style);
+  return style;
+}
 
 const chunkMeshes = new Map();   // "cx,cz" -> THREE.Group
 const dirty = new Set();         // "cx,cz" keys whose mesh must rebuild next frame
@@ -507,9 +658,22 @@ const FACES = [
 ];
 const UVQUAD = [[0,0],[0,1],[1,1],[1,0]];
 
+// emit a sub-cube box (min corner mn, max corner mx in [0,1]) — used for thin door/trapdoor/bed
+function emitBox(a, x, y, z, mn, mx) {
+  for (const f of FACES) {
+    for (const idx of [0, 1, 2, 0, 2, 3]) {
+      const c = f.c[idx];
+      a.pos.push(x + (c[0] ? mx[0] : mn[0]), y + (c[1] ? mx[1] : mn[1]), z + (c[2] ? mx[2] : mn[2]));
+      a.norm.push(f.n[0], f.n[1], f.n[2]);
+      a.uv.push(UVQUAD[idx][0], UVQUAD[idx][1]);
+    }
+  }
+}
+
 // Should the face of `type` block (at x,y,z) toward neighbour `nt` be drawn?
 function faceExposed(type, nt) {
   if (nt == null) return true;                 // air → always
+  if (THIN_TYPES.has(nt)) return true;         // thin neighbour can't cover a full face
   if (isOpaque(type)) return !isOpaque(nt);    // opaque hidden only behind opaque
   // transparent current (water/glass/leaves): hide only against same type (no internal seams)
   return nt !== type;
@@ -534,6 +698,7 @@ function buildChunkMesh(cx, cz) {
     if (type == null) continue;
     let a = acc.get(type);
     if (!a) { a = { pos: [], norm: [], uv: [] }; acc.set(type, a); }
+    if (THIN_TYPES.has(type)) { emitBox(a, x, y, z, SHAPE[type].mn, SHAPE[type].mx); continue; }
     for (const f of FACES) {
       const nt = get(x + f.n[0], y + f.n[1], z + f.n[2]);
       if (!faceExposed(type, nt)) continue;
@@ -576,10 +741,18 @@ function markDirty(x, y, z) {
   if (lz === 0) dirty.add(chunkKey(cx, cz - 1));
   if (lz === CHUNK - 1) dirty.add(chunkKey(cx, cz + 1));
 }
-function flushDirty() {
+function flushDirty(limit = Infinity) {
   if (!dirty.size) return;
-  for (const ck of dirty) { if (loaded.has(ck)) { const [cx, cz] = ck.split(',').map(Number); buildChunkMesh(cx, cz); } }
-  dirty.clear();
+  let done = 0;
+  for (const ck of [...dirty]) {
+    if (done >= limit) break;
+    dirty.delete(ck);
+    if (loaded.has(ck)) {
+      const [cx, cz] = ck.split(',').map(Number);
+      buildChunkMesh(cx, cz);
+    }
+    done++;
+  }
 }
 
 // ============================================================ terrain generation
@@ -647,6 +820,9 @@ function genSurfaceBits(x, z) {
     for (let i = 1; i <= th; i++) placeBlock(key(x, h + i, z), 'cactus');
   } else if (top === 'grass' && h > SEA && rand(x * 5.9, z * 11.3) > 0.996) {
     placeBlock(key(x, h + 1, z), 'pumpkin');
+  } else if (top === 'grass' && h > SEA && rand(x * 4.1, z * 7.3) > 0.974) {
+    const fi = Math.floor(rand(x * 2.3, z * 5.7) * 3);
+    placeBlock(key(x, h + 1, z), ['sunflower', 'rose', 'bluebell'][fi]);
   }
 }
 
@@ -805,6 +981,13 @@ const highlight = new THREE.LineSegments(
 highlight.visible = false;
 scene.add(highlight);
 
+// transparent white preview of where the held block will be placed
+const ghostBlock = new THREE.Mesh(
+  new THREE.BoxGeometry(1.01, 1.01, 1.01),
+  new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.22, depthWrite: false }));
+ghostBlock.visible = false;
+scene.add(ghostBlock);
+
 // ---- block-breaking crack overlay ----
 const CRACK_STAGES = 9;
 const crackCanvases = [];
@@ -860,9 +1043,45 @@ let aimBlock = null;
 function updateAim() {
   const dir = new THREE.Vector3();
   camera.getWorldDirection(dir);
-  aimBlock = rayBlock(controls.getObject().position, dir, 7);
+  aimBlock = rayBlock(controls.getObject().position, dir, 8);   // generous build reach
   if (aimBlock) { highlight.visible = true; highlight.position.set(aimBlock.x + 0.5, aimBlock.y + 0.5, aimBlock.z + 0.5); }
   else highlight.visible = false;
+  // show the placement preview only when holding a placeable block at a valid spot
+  const held = hotbar[currentSlot];
+  const t = (isBlock(held) && (gameMode !== 'survival' || counts[currentSlot] > 0)) ? placeTarget() : null;
+  if (t) { ghostBlock.visible = true; ghostBlock.position.set(t.x + 0.5, t.y + 0.5, t.z + 0.5); }
+  else ghostBlock.visible = false;
+  if (!controlsActive() || invOpen || furnaceOpen || chestOpen || menuOpen || dead) return setContextPrompt('');
+  if (aimBlock) {
+    const hit = world.get(key(aimBlock.x, aimBlock.y, aimBlock.z));
+    if (t && held) return setContextPrompt(`${itemName(hit)}  ->  Place ${itemName(held)}`);
+    return setContextPrompt(itemName(hit));
+  }
+  setContextPrompt(held ? itemName(held) : '');
+}
+// the cell the held block would occupy, or null if placement isn't allowed there.
+// Forgiving rules: water is replaceable; only the two cells the player's body fills are blocked.
+function placeTarget() {
+  if (!aimBlock) return null;
+  const nx = aimBlock.x + aimBlock.nx, ny = aimBlock.y + aimBlock.ny, nz = aimBlock.z + aimBlock.nz;
+  const occ = world.get(key(nx, ny, nz));
+  if (occ != null && occ !== 'water') return null;
+  const p = controls.getObject().position, feet = Math.floor(p.y - PLAYER_H);
+  if (Math.floor(p.x) === nx && Math.floor(p.z) === nz && (ny === feet || ny === feet + 1)) return null;
+  return { x: nx, y: ny, z: nz };
+}
+function placeTargets(count = 1) {
+  const first = placeTarget();
+  if (!first || !aimBlock) return [];
+  const out = [first];
+  const dx = aimBlock.nx, dy = aimBlock.ny, dz = aimBlock.nz;
+  for (let i = 1; i < count; i++) {
+    const nx = first.x + dx * i, ny = first.y + dy * i, nz = first.z + dz * i;
+    const occ = world.get(key(nx, ny, nz));
+    if (occ != null && occ !== 'water') break;
+    out.push({ x: nx, y: ny, z: nz });
+  }
+  return out;
 }
 
 // ============================================================ particles
@@ -882,6 +1101,10 @@ function spawnParticles(cx, cy, cz, hex, n) {
     particles.push({ m, vx: (Math.random() - 0.5) * 4, vy: 3 + Math.random() * 3, vz: (Math.random() - 0.5) * 4, life: 0.6 + Math.random() * 0.3 });
   }
 }
+function spawnConfettiBurst(cx, cy, cz, n = 26) {
+  const palette = [0xff5a5f, 0xffc145, 0x68d391, 0x56ccf2, 0xb892ff, 0xffffff];
+  for (let i = 0; i < n; i++) spawnParticles(cx, cy, cz, palette[i % palette.length], 1);
+}
 function updateParticles(dt) {
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
@@ -899,12 +1122,32 @@ function updateParticles(dt) {
 // vacuumed into the inventory when the player walks near them (like normal MC).
 const drops = [];
 const dropGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
-function spawnDrop(id, x, y, z) {
+function spawnDrop(id, x, y, z, n = 1) {
   if (!id) return;
   const m = new THREE.Mesh(dropGeo, colorMat(itemDef(id).color));
   m.position.set(x + 0.5, y + 0.45, z + 0.5);
   scene.add(m);
-  drops.push({ id, m, vy: 2, age: 0 });
+  drops.push({ id, n, m, vy: 2, age: 0 });
+}
+function blockBelowPlayer(pos) {
+  return world.get(key(
+    Math.floor(pos.x - gUp.x * (PLAYER_H + 0.05)),
+    Math.floor(pos.y - gUp.y * (PLAYER_H + 0.05)),
+    Math.floor(pos.z - gUp.z * (PLAYER_H + 0.05))
+  ));
+}
+function queueAutoToggle(x, y, z, next, ttl = 3.6) {
+  autoToggleQueue.push({ x, y, z, next, ttl });
+}
+function updateAutoToggles(dt) {
+  for (let i = autoToggleQueue.length - 1; i >= 0; i--) {
+    const item = autoToggleQueue[i];
+    item.ttl -= dt;
+    if (item.ttl > 0) continue;
+    autoToggleQueue.splice(i, 1);
+    const cur = world.get(key(item.x, item.y, item.z));
+    if (cur === item.next) toggleBlock(item.x, item.y, item.z, cur, true);
+  }
 }
 function updateDrops(dt) {
   const pp = controls.getObject().position;
@@ -923,7 +1166,7 @@ function updateDrops(dt) {
     const dx = pp.x - p.x, dy = (pp.y - PLAYER_H * 0.5) - p.y, dz = pp.z - p.z;
     const dist = Math.hypot(dx, dy, dz);
     if (d.age > 0.4 && dist < 1.4) {
-      if (dist < 0.6) { addToInventory(d.id, 1); scene.remove(d.m); drops.splice(i, 1); continue; }
+      if (dist < 0.6) { addToInventory(d.id, d.n || 1); scene.remove(d.m); drops.splice(i, 1); continue; }
       const pull = Math.min(1, 6 * dt / Math.max(dist, 0.2));
       p.x += dx * pull; p.y += dy * pull; p.z += dz * pull;
     }
@@ -1008,6 +1251,7 @@ const RADIUS = 0.3, PLAYER_H = 1.7;
 const GRAVITY = 28, WALK = 6, SPRINT = 8.6, SWIM = 3.6, FLY = 13, JUMP = 9;
 const MAX_HP = 20, MAX_HUNGER = 20;
 const SPAWN = new THREE.Vector3(0.5, surfaceY(0, 0) + PLAYER_H, 0.5);
+let respawnPoint = SPAWN.clone();   // moved when sleeping in a bed
 controls.getObject().position.copy(SPAWN);
 
 let gameMode = 'survival';
@@ -1019,6 +1263,7 @@ let airMaxY = SPAWN.y, wasGrounded = true;
 const velocity = new THREE.Vector3();
 let vUp = 0;           // player speed along gUp (negative = falling toward the face)
 let onGround = false;
+let jumpBufferT = 0, coyoteT = 0;
 
 const overlay = document.getElementById('overlay');
 const menu = document.getElementById('menu');
@@ -1041,12 +1286,15 @@ let menuOpen = false;
 let invOpen = false;     // survival inventory/crafting screen open
 let trackpadMode = false;
 let lastPointer = null;
+let promptFlash = 0, contextPrompt = '', scaleTuneT = 0;
+let partyModeT = 0;
+const autoToggleQueue = [];
 
 overlay.addEventListener('click', () => { if (joinEl.classList.contains('hidden')) controls.lock(); });
 controls.addEventListener('lock', () => overlay.classList.add('hidden'));
 controls.addEventListener('unlock', () => {
   if (!trackpadMode) velocity.set(0, 0, 0);
-  if (!menuOpen && !invOpen && !furnaceOpen && !chatOpen && !dead && !trackpadMode) overlay.classList.remove('hidden');
+  if (!menuOpen && !invOpen && !furnaceOpen && !chestOpen && !chatOpen && !dead && !trackpadMode) overlay.classList.remove('hidden');
 });
 
 function setTrackpadMode(on) {
@@ -1059,6 +1307,49 @@ function setTrackpadMode(on) {
     renderer.domElement.focus();
   } else if (!controls.isLocked && !menuOpen && !dead) {
     overlay.classList.remove('hidden');
+  }
+}
+function setPrompt(text, ttl = 0) {
+  if (ttl > 0) promptFlash = ttl;
+  else if (promptFlash > 0) return;
+  if (!text) {
+    promptEl.textContent = '';
+    promptEl.style.display = 'none';
+    return;
+  }
+  promptEl.textContent = text;
+  promptEl.style.display = 'block';
+}
+function tossHotbarItem(all = false) {
+  const id = hotbar[currentSlot];
+  if (!id || !Number.isFinite(counts[currentSlot]) || counts[currentSlot] <= 0) return false;
+  const n = all ? counts[currentSlot] : 1;
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  const p = controls.getObject().position;
+  spawnDrop(id, p.x + dir.x * 0.9 - 0.5, p.y - 1.0, p.z + dir.z * 0.9 - 0.5, n);
+  counts[currentSlot] -= n;
+  if (counts[currentSlot] <= 0) {
+    const oldId = hotbar[currentSlot];
+    hotbar[currentSlot] = null;
+    counts[currentSlot] = 0;
+    buildHeld(null);
+    tryRestockSlot(currentSlot, oldId);
+  }
+  paintSlot(currentSlot);
+  setPrompt(all ? `Dropped ${itemName(id)} stack` : `Dropped ${itemName(id)}`, 0.9);
+  return true;
+}
+function setContextPrompt(text) {
+  contextPrompt = text || '';
+  if (promptFlash <= 0) setPrompt(contextPrompt, 0);
+}
+function updatePrompt(dt) {
+  if (promptFlash > 0) {
+    promptFlash = Math.max(0, promptFlash - dt);
+    if (promptFlash === 0) setPrompt(contextPrompt, 0);
+  } else if (!contextPrompt && promptEl.style.display !== 'none') {
+    promptEl.style.display = 'none';
   }
 }
 renderer.domElement.addEventListener('pointermove', (e) => {
@@ -1079,25 +1370,42 @@ const controlsActive = () => controls.isLocked || trackpadMode;
 addEventListener('keyup', (e) => keys[e.code] = false);
 addEventListener('keydown', (e) => {
   if (chatOpen) { return; }   // chat input handles its own keys
-  if (e.code === 'KeyT' && MULTIPLAYER && multiplayerJoined && controlsActive() && !invOpen && !furnaceOpen) {
+  if (e.code === 'KeyT' && MULTIPLAYER && multiplayerJoined && controlsActive() && !invOpen && !furnaceOpen && !chestOpen) {
     e.preventDefault(); openChat(); return;
   }
+  if (e.code === 'Space') jumpBufferT = 0.14;
   keys[e.code] = true;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Tab'].includes(e.code)) e.preventDefault();
   if (e.code === 'Tab') { setTrackpadMode(!trackpadMode); return; }
   if (e.code === 'KeyE') {
     e.preventDefault();
     if (gameMode === 'creative') { toggleMenu(); return; }
-    if (invOpen || furnaceOpen) closeInvScreens(); else openInventory(2);
+    if (invOpen || furnaceOpen || chestOpen) closeInvScreens(); else openInventory(2);
     return;
   }
   if (e.code === 'Escape') {
     if (menuOpen) { closeMenu(); return; }
-    if (invOpen || furnaceOpen) { closeInvScreens(); return; }
+    if (invOpen || furnaceOpen || chestOpen) { closeInvScreens(); return; }
     if (trackpadMode) { setTrackpadMode(false); return; }
   }
   if (e.code === 'KeyF' && gameMode === 'creative') { flying = !flying; velocity.y = 0; vUp = 0; }
   if (e.code === 'KeyG' && (!MULTIPLAYER || IS_TEACHER)) setMode(gameMode === 'creative' ? 'survival' : 'creative');
+  if (e.code === 'KeyQ' && controlsActive() && !menuOpen && !invOpen && !furnaceOpen && !chestOpen) {
+    e.preventDefault();
+    tossHotbarItem(e.shiftKey);
+    return;
+  }
+  if (e.code === 'KeyR' && gameMode === 'survival') {
+    if (chestOpen) sortChest();
+    else sortBackpack();
+    return;
+  }
+  if (e.code === 'KeyX' && (chestOpen || furnaceOpen)) {
+    if (e.shiftKey) pullFromOpenContainer();
+    else quickStackIntoOpenContainer();
+    return;
+  }
+  if (e.code === 'KeyB') { togglePartyMode(); return; }
   if (e.code === 'KeyP' && controlsActive()) { localStorage.removeItem('mc_save_v1'); location.reload(); }
   if (e.code.startsWith('Digit')) { const n = +e.code.slice(5) - 1; if (n >= 0 && n < 9) selectSlot(n); }
 });
@@ -1150,11 +1458,26 @@ function moveAxis(axis, amount, pos) {
   pos[axis] += amount;
   if (playerCollides(pos)) {
     pos[axis] -= amount;
+    if (axis !== upAxis && amount !== 0 && !flying && grounded(pos) && tryStepMove(axis, amount, pos)) return;
     if (axis === upAxis) { if (amount * upSign < 0) onGround = true; vUp = 0; }
   }
 }
 function grounded(pos) {
   return playerCollides({ x: pos.x - gUp.x * 0.05, y: pos.y - gUp.y * 0.05, z: pos.z - gUp.z * 0.05 });
+}
+function tryStepMove(axis, amount, pos) {
+  const ox = pos.x, oy = pos.y, oz = pos.z;
+  const step = 0.62;
+  pos.x += gUp.x * step; pos.y += gUp.y * step; pos.z += gUp.z * step;
+  if (playerCollides(pos)) { pos.set(ox, oy, oz); return false; }
+  pos[axis] += amount;
+  if (playerCollides(pos)) { pos.set(ox, oy, oz); return false; }
+  for (let i = 0; i < 6; i++) {
+    const tx = pos.x - gUp.x * 0.12, ty = pos.y - gUp.y * 0.12, tz = pos.z - gUp.z * 0.12;
+    if (playerCollides({ x: tx, y: ty, z: tz })) break;
+    pos.set(tx, ty, tz);
+  }
+  return true;
 }
 
 // arrow-key look — feeds the same yaw/pitch the mouse drives
@@ -1205,7 +1528,11 @@ function eatFood(itemId) {
     updateHunger(); updateHearts();
     if (Number.isFinite(counts[currentSlot])) {
       counts[currentSlot]--;
-      if (counts[currentSlot] <= 0) { hotbar[currentSlot] = null; counts[currentSlot] = 0; buildHeld(null); }
+      if (counts[currentSlot] <= 0) {
+        const oldId = hotbar[currentSlot];
+        hotbar[currentSlot] = null; counts[currentSlot] = 0; buildHeld(null);
+        tryRestockSlot(currentSlot, oldId);
+      }
       paintSlot(currentSlot);
     }
   }
@@ -1215,6 +1542,11 @@ function eatFood(itemId) {
     controls.getObject().position.z - 0.5,
     food.color,
     6);
+  if (itemId === 'cheese_wedge') {
+    partyModeT = Math.max(partyModeT, 4);
+    spawnConfettiBurst(controls.getObject().position.x - 0.5, controls.getObject().position.y - 0.9, controls.getObject().position.z - 0.5, 16);
+    setPrompt('CHEESE POWER!', 1.25);
+  }
   return true;
 }
 function damagePlayer(dmg) {
@@ -1241,9 +1573,10 @@ function die() {
 function respawn() {
   dead = false; deathEl.classList.add('hidden');
   health = MAX_HP; hunger = MAX_HUNGER; updateHearts(); updateHunger();
-  controls.getObject().position.copy(SPAWN);
-  ensureSpawnChunks();   // spawn may have been unloaded while roaming far away
-  velocity.set(0, 0, 0); vUp = 0; airMaxY = SPAWN.y; wasGrounded = true; hungerTick = 0; starveTick = 0;
+  controls.getObject().position.copy(respawnPoint);
+  const [rcx, rcz] = chunkOf(respawnPoint.x, respawnPoint.z);   // ensure ground exists at respawn
+  for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) genChunk(rcx + dx, rcz + dz);
+  velocity.set(0, 0, 0); vUp = 0; airMaxY = respawnPoint.y; wasGrounded = true; hungerTick = 0; starveTick = 0;
   if (MULTIPLAYER) sendRoom({ type: 'respawn', transform: localTransform() });
 }
 
@@ -1258,6 +1591,14 @@ const PASSIVE_KINDS = [
   { name: 'Iguana',  body: 0x6fae4a, head: 0x7cbb55, leg: 0x4f7d34, hp: 6,  speed: 1.6, shape: 'iguana' },
   { name: 'Ostrich', body: 0x4a4038, head: 0xe8c6a0, leg: 0xd9b48c, hp: 10, speed: 3.2, shape: 'ostrich' },
   { name: 'Cheetah', body: 0xd9a441, head: 0xe0b057, leg: 0xc28b30, hp: 10, speed: 4.4, shape: 'cheetah' },
+  { name: 'Squirrel',body: 0x8a5a2b, head: 0x9a6a35, leg: 0x6e4622, hp: 4,  speed: 3.4, shape: 'squirrel' },
+  { name: 'Fox',     body: 0xd06a2a, head: 0xe07a36, leg: 0x2a2018, hp: 8,  speed: 4.0, shape: 'cheetah' },
+  { name: 'Deer',    body: 0xb07a44, head: 0xc08a52, leg: 0x6e4a28, hp: 10, speed: 3.6, shape: 'deer' },
+  { name: 'Frog',    body: 0x4a9a3a, head: 0x57aa45, leg: 0x3a7d2e, hp: 4,  speed: 2.2, shape: 'frog' },
+  { name: 'Turtle',  body: 0x4f7d34, head: 0x7cbb55, leg: 0xcabf8a, hp: 8,  speed: 0.9, shape: 'turtle' },
+  { name: 'Goat',    body: 0xe8e4dc, head: 0xf0ece4, leg: 0xb0a890, hp: 10, speed: 2.4, shape: 'quad' },
+  { name: 'Duck',    body: 0xf2e8c0, head: 0x3a8a3a, leg: 0xf2a23a, hp: 4,  speed: 2.2, shape: 'bird' },
+  { name: 'Penguin', body: 0x1c1c22, head: 0xf0f0f0, leg: 0xf2a23a, hp: 6,  speed: 1.8, shape: 'biped' },
 ];
 const HOSTILE_KINDS = [
   { name: 'Zombie',  body: 0x3f7a3a, head: 0x6b8f5a, leg: 0x33485a, hp: 16, speed: 2.4, dmg: 3, detect: 18, shape: 'biped',   hostile: true, weight: 1, burnsInSun: true },
@@ -1388,6 +1729,51 @@ function buildBody(k) {
     const wR = box(0.95, 0.08, 0.5, k.body, -0.6, 0.05, 0);
     wL.userData.wing = 1; wR.userData.wing = -1;
     parts.push(wL, wR);
+  } else if (k.shape === 'squirrel') {
+    parts = [
+      box(0.3, 0.34, 0.5, k.body, 0, 0.34, 0),         // small body
+      box(0.28, 0.3, 0.28, k.head, 0, 0.52, 0.28),      // head up front
+      box(0.08, 0.13, 0.05, k.head, 0.09, 0.68, 0.3),   // ears
+      box(0.08, 0.13, 0.05, k.head, -0.09, 0.68, 0.3),
+      box(0.2, 0.6, 0.42, k.body, 0, 0.55, -0.34),      // big bushy tail
+      box(0.1, 0.22, 0.1, k.leg, 0.1, 0.12, 0.14),      // legs
+      box(0.1, 0.22, 0.1, k.leg, -0.1, 0.12, 0.14),
+      box(0.1, 0.22, 0.1, k.leg, 0.1, 0.12, -0.12),
+      box(0.1, 0.22, 0.1, k.leg, -0.1, 0.12, -0.12),
+    ];
+  } else if (k.shape === 'deer') {
+    parts = [
+      box(0.5, 0.55, 1.1, k.body, 0, 1.0, 0),           // body
+      box(0.16, 0.55, 0.16, k.body, 0, 1.45, 0.45),     // neck
+      box(0.32, 0.4, 0.42, k.head, 0, 1.62, 0.6),        // head
+      box(0.06, 0.32, 0.06, k.head, 0.12, 1.9, 0.55),    // antlers
+      box(0.06, 0.32, 0.06, k.head, -0.12, 1.9, 0.55),
+      box(0.14, 0.72, 0.14, k.leg, 0.18, 0.36, 0.4),     // 4 tall legs
+      box(0.14, 0.72, 0.14, k.leg, -0.18, 0.36, 0.4),
+      box(0.14, 0.72, 0.14, k.leg, 0.18, 0.36, -0.4),
+      box(0.14, 0.72, 0.14, k.leg, -0.18, 0.36, -0.4),
+    ];
+  } else if (k.shape === 'frog') {
+    parts = [
+      box(0.55, 0.32, 0.5, k.body, 0, 0.26, 0),          // squat body
+      box(0.5, 0.26, 0.3, k.head, 0, 0.32, 0.32),         // wide head
+      box(0.11, 0.11, 0.11, 0x101010, 0.16, 0.46, 0.42),  // eyes
+      box(0.11, 0.11, 0.11, 0x101010, -0.16, 0.46, 0.42),
+      box(0.17, 0.16, 0.3, k.leg, 0.26, 0.13, -0.16),     // big hind legs
+      box(0.17, 0.16, 0.3, k.leg, -0.26, 0.13, -0.16),
+      box(0.1, 0.13, 0.1, k.leg, 0.2, 0.1, 0.3),          // front legs
+      box(0.1, 0.13, 0.1, k.leg, -0.2, 0.1, 0.3),
+    ];
+  } else if (k.shape === 'turtle') {
+    parts = [
+      box(0.7, 0.42, 0.9, k.body, 0, 0.42, 0),           // shell dome
+      box(0.78, 0.2, 0.98, k.leg, 0, 0.2, 0),             // lower shell rim
+      box(0.26, 0.24, 0.26, k.head, 0, 0.34, 0.62),        // head
+      box(0.16, 0.14, 0.3, k.leg, 0.32, 0.16, 0.32),       // flippers
+      box(0.16, 0.14, 0.3, k.leg, -0.32, 0.16, 0.32),
+      box(0.16, 0.14, 0.3, k.leg, 0.32, 0.16, -0.32),
+      box(0.16, 0.14, 0.3, k.leg, -0.32, 0.16, -0.32),
+    ];
   } else { // quad
     parts = [
       box(0.85, 0.6, 1.25, k.body, 0, 0.7, 0),
@@ -1487,6 +1873,8 @@ function updateFlyer(mob, dt) {
   }
   const heading = Math.atan2(mz, mx);
   g.rotation.y = -heading + Math.PI / 2;
+  if (partyModeT > 0) g.rotation.z = Math.sin(clock * 8 + mob.bob) * 0.22;
+  else g.rotation.z = 0;
   const flap = Math.sin(clock * 6 + mob.bob) * 0.5;
   for (const p of mob.parts) if (p.userData.wing) p.rotation.z = p.userData.wing * flap;
   if (chase) {
@@ -1551,6 +1939,10 @@ function updatePlanetMob(mob, dt) {
   _qMobUp.setFromUnitVectors(UP_Y, _mUp);
   _qMobYaw.setFromAxisAngle(UP_Y, -mob.heading + Math.PI / 2);
   g.quaternion.copy(_qMobUp).multiply(_qMobYaw);
+  if (partyModeT > 0) {
+    const qDance = new THREE.Quaternion().setFromAxisAngle(_mUp, Math.sin(clock * 7 + mob.bob) * 0.22);
+    g.quaternion.multiply(qDance);
+  }
 
   if (mob.hitT > 0) { mob.hitT -= dt; if (mob.hitT <= 0) setEmissive(mob, 0x000000); }
 }
@@ -1631,6 +2023,9 @@ function updateMob(mob, dt) {
     g.position.x = mob.home.x + Math.cos(a) * mob.leash;
     g.position.z = mob.home.z + Math.sin(a) * mob.leash;
   }
+  if (partyModeT > 0) {
+    g.rotation.z = Math.sin(clock * 9 + mob.bob) * 0.18;
+  } else g.rotation.z = 0;
   if (mob.hitT > 0) { mob.hitT -= dt; if (mob.hitT <= 0) setEmissive(mob, 0x000000); }
   if (g.position.y < -30) removeMob(mob);
 }
@@ -1642,6 +2037,10 @@ function hurtMob(mob, dmg, dir) {
   mob.group.position.z += dir.z * 0.6;
   if (mob.hp <= 0) {
     spawnParticles(mob.group.position.x - 0.5, mob.group.position.y, mob.group.position.z - 0.5, mob.kind.body, 14);
+    if (partyModeT > 0 || mob.kind.name === 'Duck' || mob.kind.name === 'Goat') {
+      spawnConfettiBurst(mob.group.position.x - 0.5, mob.group.position.y, mob.group.position.z - 0.5, 20);
+      setPrompt(`${mob.kind.name} pinata!`, 0.9);
+    }
     if (gameMode === 'survival') for (const [id, cnt] of mobDrop(mob.kind)) addToInventory(id, cnt);
     removeMob(mob);
   }
@@ -1698,7 +2097,7 @@ function surfaceNear(pos, rMin, rMax) {
   if (heightAt(x, z) <= SEA) return null;
   return loaded.has(chunkKey(...chunkOf(x, z))) ? { x, z } : null;
 }
-if (!MULTIPLAYER) for (let i = 0; i < 16; i++) { const s = randomSurface(60); if (s) spawnPassive(s.x, s.z); }
+if (!MULTIPLAYER) for (let i = 0; i < 26; i++) { const s = randomSurface(60); if (s) spawnPassive(s.x, s.z); }
 // birds flying over the home world
 for (let i = 0; i < 7; i++) {
   const s = randomSurface(60);
@@ -1722,17 +2121,28 @@ const center = new THREE.Vector2(0, 0);
 
 addEventListener('contextmenu', (e) => e.preventDefault());
 addEventListener('mousedown', (e) => {
-  if (!controlsActive() || dead || invOpen) return;
+  if (!controlsActive() || dead || invOpen || furnaceOpen || chestOpen) return;
   if (e.button === 0) {
     lmbDown = true; swing();
     const held = hotbar[currentSlot];
     if (held === 'bow') { shootArrow(); return; }
     if (held === 'gun') { shootBullet(); return; }
     // melee/mining handled continuously in updateLeftAction
+  } else if (e.button === 1) {
+    if (gameMode === 'creative' && aimBlock) {
+      const id = world.get(key(aimBlock.x, aimBlock.y, aimBlock.z));
+      if (id && !OPEN_TYPES.has(id)) {
+        hotbar[currentSlot] = id;
+        counts[currentSlot] = Infinity;
+        paintSlot(currentSlot);
+        buildHeld(id);
+        setPrompt(`Copied ${itemName(id)}`, 0.9);
+      }
+    }
   } else if (e.button === 2) { swing(); rightClick(); }
 });
 addEventListener('mouseup', (e) => { if (e.button === 0) { lmbDown = false; resetMine(); } });
-addEventListener('wheel', (e) => { if (controlsActive() && !invOpen) selectSlot((currentSlot + (e.deltaY > 0 ? 1 : 8)) % 9); });
+addEventListener('wheel', (e) => { if (controlsActive() && !invOpen && !furnaceOpen && !chestOpen) selectSlot((currentSlot + (e.deltaY > 0 ? 1 : 8)) % 9); });
 
 function nearestMob() {
   raycaster.far = 5;
@@ -1863,11 +2273,22 @@ function breakBlock(x, y, z) {
   const k = key(x, y, z);
   const broken = world.get(k);
   if (!broken || broken === 'bedrock') return;
+  for (let i = autoToggleQueue.length - 1; i >= 0; i--) {
+    const q = autoToggleQueue[i];
+    if (q.x === x && q.y === y && q.z === z) autoToggleQueue.splice(i, 1);
+  }
+  if (broken === 'chest' && chestStore.has(k)) {        // spill chest contents as drops
+    for (const sl of chestStore.get(k)) if (sl.id) spawnDrop(sl.id, x, y, z, sl.n);
+    chestStore.delete(k);
+  }
+  if (broken === 'bed' && Math.floor(respawnPoint.x) === x && Math.floor(respawnPoint.z) === z)
+    respawnPoint = SPAWN.clone();                        // lost your bed → back to world spawn
   world.delete(k);
   edits.set(k, null);
   const owned = chunkOwnedBlocks(...chunkOf(x, z)); if (owned) owned.delete(k);
   markDirty(x, y, z);
   spawnParticles(x, y, z, BLOCKS[broken].color, 10);
+  if (broken === 'pumpkin' || broken === 'cheese') spawnConfettiBurst(x, y, z, 18);
   broadcastBlockEdit(x, y, z, null);
   if (gameMode === 'survival' && isBlock(broken) && broken !== 'water') {
     const held = hotbar[currentSlot];
@@ -1877,7 +2298,7 @@ function breakBlock(x, y, z) {
 // continuous left action — runs every frame while LMB held
 function updateLeftAction(dt) {
   meleeCD = Math.max(0, meleeCD - dt);
-  if (!lmbDown || !controlsActive() || dead || invOpen) { if (mineKey) resetMine(); return; }
+  if (!lmbDown || !controlsActive() || dead || invOpen || furnaceOpen || chestOpen) { if (mineKey) resetMine(); return; }
   const held = hotbar[currentSlot];
   if (held === 'bow' || held === 'gun') return;   // click-only weapons fire on mousedown
   const mobHit = nearestMob();
@@ -1896,6 +2317,7 @@ function updateLeftAction(dt) {
   const { x, y, z } = aimBlock;
   const t = world.get(key(x, y, z));
   if (!t || t === 'bedrock') { if (mineKey) resetMine(); return; }
+  maybeAutoSelectTool(t);
   if (gameMode !== 'survival') {            // creative: rapid instant break
     if (meleeCD <= 0) { breakBlock(x, y, z); meleeCD = 0.16; swing(); }
     return;
@@ -1909,33 +2331,95 @@ function updateLeftAction(dt) {
   if (isFinite(bt) && mineT >= bt) { breakBlock(x, y, z); resetMine(); meleeCD = 0.05; }
 }
 function rightClick() {
-  if (gameMode === 'survival' && aimBlock) {
-    const at = world.get(key(aimBlock.x, aimBlock.y, aimBlock.z));
-    if (at === 'crafting') { openInventory(3); return; }
-    if (at === 'furnace') { openFurnace(); return; }
+  if (aimBlock) {
+    const ak = key(aimBlock.x, aimBlock.y, aimBlock.z);
+    const at = world.get(ak);
+    if (at in TOGGLE) { toggleBlock(aimBlock.x, aimBlock.y, aimBlock.z, at); return; }   // doors/trapdoors
+    if (at === 'bed') { sleepInBed(aimBlock.x, aimBlock.y, aimBlock.z); return; }
+    if (gameMode === 'survival') {
+      if (at === 'crafting') { openInventory(3); return; }
+      if (at === 'furnace') { openFurnace(); return; }
+      if (at === 'chest') { openChest(ak); return; }
+    }
   }
   const held = hotbar[currentSlot];
   if (isFood(held)) { eatFood(held); return; }
   if (!aimBlock || !isBlock(held)) return;
   if (gameMode === 'survival' && counts[currentSlot] <= 0) return;   // nothing left to place
-  const nx = aimBlock.x + aimBlock.nx, ny = aimBlock.y + aimBlock.ny, nz = aimBlock.z + aimBlock.nz;
-  if (world.has(key(nx, ny, nz))) return;
-  const p = controls.getObject().position, feet = Math.floor(p.y - PLAYER_H);
-  if (Math.floor(p.x) === nx && Math.floor(p.z) === nz && (ny === feet || ny === feet + 1)) return;
-  world.set(key(nx, ny, nz), held);
-  edits.set(key(nx, ny, nz), held);
-  const owned = chunkOwnedBlocks(...chunkOf(nx, nz)); if (owned) owned.add(key(nx, ny, nz));
-  markDirty(nx, ny, nz);
-  broadcastBlockEdit(nx, ny, nz, held);
+  const lineMode = keys['ShiftLeft'] || keys['ShiftRight'];
+  const targets = placeTargets(lineMode ? 3 : 1);
+  if (!targets.length) return;
+  let placed = 0;
+  const allow = gameMode === 'survival' && Number.isFinite(counts[currentSlot]) ? counts[currentSlot] : Infinity;
+  for (const tgt of targets) {
+    if (placed >= allow) break;
+    const { x: nx, y: ny, z: nz } = tgt;
+    world.set(key(nx, ny, nz), held);
+    edits.set(key(nx, ny, nz), held);
+    const owned = chunkOwnedBlocks(...chunkOf(nx, nz)); if (owned) owned.add(key(nx, ny, nz));
+    markDirty(nx, ny, nz);
+    broadcastBlockEdit(nx, ny, nz, held);
+    placed++;
+  }
+  if (placed <= 0) return;
+  const last = targets[Math.min(placed - 1, targets.length - 1)];
+  if (held === 'pumpkin') {
+    spawnConfettiBurst(last.x, last.y, last.z, 12 + placed * 2);
+    setPrompt(placed > 1 ? `Pumpkin parade x${placed}` : 'Pumpkin deployed. Maximum goofiness.', 1.25);
+  } else if (held === 'torch') {
+    setPrompt(placed > 1 ? `Torch line x${placed}` : 'Torch planted', 0.7);
+  } else if (placed > 1) {
+    setPrompt(`Built line x${placed}`, 0.85);
+  }
   if (gameMode === 'survival' && Number.isFinite(counts[currentSlot])) {
-    counts[currentSlot]--;
-    if (counts[currentSlot] <= 0) { hotbar[currentSlot] = null; counts[currentSlot] = 0; buildHeld(null); }
+    counts[currentSlot] -= placed;
+    if (counts[currentSlot] <= 0) {
+      const oldId = hotbar[currentSlot];
+      hotbar[currentSlot] = null; counts[currentSlot] = 0; buildHeld(null);
+      tryRestockSlot(currentSlot, oldId);
+    }
     paintSlot(currentSlot);
   }
 }
 function distToBlock(b) {
   const p = controls.getObject().position;
   return Math.hypot(b.x + 0.5 - p.x, b.y + 0.5 - p.y, b.z + 0.5 - p.z);
+}
+// open/close a door or trapdoor by swapping it for its paired state
+function toggleBlock(x, y, z, cur, quiet = false) {
+  const next = TOGGLE[cur], k = key(x, y, z);
+  for (let i = autoToggleQueue.length - 1; i >= 0; i--) {
+    const q = autoToggleQueue[i];
+    if (q.x === x && q.y === y && q.z === z) autoToggleQueue.splice(i, 1);
+  }
+  world.set(k, next);
+  edits.set(k, next);
+  const owned = chunkOwnedBlocks(...chunkOf(x, z)); if (owned) owned.add(k);
+  markDirty(x, y, z);
+  broadcastBlockEdit(x, y, z, next);
+  if (!quiet) {
+    if (next === 'door_open' || next === 'trapdoor_open') queueAutoToggle(x, y, z, next);
+    setPrompt(next.includes('open') ? 'Opened' : 'Closed', 0.55);
+  }
+}
+// sleep in a bed: only at night; skips to sunrise and sets the respawn point
+function sleepInBed(x, y, z) {
+  if (!isNight) { addChatLine(null, 'No naps. The sun is still watching.'); setPrompt('No naps in daylight', 1.1); return; }
+  const wake = Math.asin(0.18);                       // sun angle just past sunrise (rising)
+  const cur = clock * 0.025 + Math.PI / 2;
+  let target = wake + Math.PI * 2 * Math.ceil((cur - wake) / (Math.PI * 2));
+  if (target <= cur + 0.05) target += Math.PI * 2;
+  clock = (target - Math.PI / 2) / 0.025;
+  respawnPoint.set(x + 0.5, y + 1 + PLAYER_H, z + 0.5);
+  addChatLine(null, 'Good morning — respawn point set.');
+  setPrompt('Slept to sunrise', 1.2);
+}
+function togglePartyMode() {
+  partyModeT = partyModeT > 0 ? 0 : 14;
+  const p = controls.getObject().position;
+  spawnConfettiBurst(p.x - 0.5, p.y - 0.8, p.z - 0.5, 30);
+  setPrompt(partyModeT > 0 ? 'PARTY MODE!' : 'Party mode off', 1.3);
+  addChatLine(null, partyModeT > 0 ? 'Disco sky enabled.' : 'Disco sky cooled down.');
 }
 // ============================================================ held-item viewmodel
 const vmScene = new THREE.Scene();
@@ -2011,7 +2495,9 @@ function buildHeld(itemId) {
     g.rotation.set(0, 0.3, 0.5); g.scale.set(0.9, 0.9, 0.9);
     vmHand.add(g);
   } else if (isBlock(itemId)) {
-    const c = box(0.5, 0.5, 0.5, BLOCKS[itemId].color, 0, 0, 0);
+    const mats = Array.from({ length: 6 }, () => materials[itemId]);
+    const c = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), mats);
+    c.position.set(0, 0, 0);
     c.rotation.set(0.4, 0.7, 0);
     vmHand.add(c);
   } else {
@@ -2042,15 +2528,18 @@ const slotEls = hotbar.map(() => { const el = document.createElement('div'); el.
 function paintSlot(i) {
   const id = hotbar[i];
   const el = slotEls[i];
-  if (!id) { el.style.background = 'rgba(0,0,0,0.25)'; el.innerHTML = `<span class="num">${i + 1}</span>`; return; }
-  el.style.background = swatch(id);
+  if (!id) { el.style.background = ''; el.innerHTML = `<span class="num">${i + 1}</span>`; return; }
   const qty = Number.isFinite(counts[i]) ? `<span class="qty">${counts[i]}</span>` : '';
-  el.innerHTML = `<span class="num">${i + 1}</span>${itemName(id)}${qty}`;
+  el.innerHTML =
+    `<span class="num">${i + 1}</span>` +
+    `<div class="chip" style="${itemPreviewStyle(id)}"></div>` +
+    `<span class="label">${itemName(id)}</span>${qty}`;
 }
 function selectSlot(i) {
   currentSlot = i;
   slotEls.forEach((el, j) => el.classList.toggle('active', j === i));
   buildHeld(hotbar[i]);
+  setPrompt(hotbar[i] ? itemName(hotbar[i]) : 'Empty hand', 0.9);
 }
 hotbar.forEach((_, i) => paintSlot(i));
 selectSlot(0);
@@ -2072,18 +2561,126 @@ function setPslot(i, id, n) {
   else { const j = i - 9; store[j] = id; storeCounts[j] = id ? n : 0; }
 }
 
-function addToInventory(id, n) {
+function tryRestockSlot(i, preferredId) {
+  if (hotbar[i] != null || !preferredId) return false;
+  for (let j = 0; j < STORE_N; j++) {
+    if (store[j] !== preferredId) continue;
+    hotbar[i] = store[j];
+    counts[i] = storeCounts[j];
+    store[j] = null;
+    storeCounts[j] = 0;
+    paintSlot(i);
+    if (i === currentSlot) buildHeld(hotbar[i]);
+    renderOpen();
+    setPrompt(`Restocked ${itemName(preferredId)}`, 1.1);
+    return true;
+  }
+  return false;
+}
+
+function sortBackpack() {
+  const packed = [];
+  for (let j = 0; j < STORE_N; j++) if (store[j]) packed.push({ id: store[j], n: storeCounts[j] });
+  packed.sort((a, b) => {
+    const rank = (id) => isBlock(id) ? 0 : isTool(id) ? 1 : isFood(id) ? 2 : 3;
+    return rank(a.id) - rank(b.id) || itemName(a.id).localeCompare(itemName(b.id)) || b.n - a.n;
+  });
+  store.fill(null); storeCounts.fill(0);
+  packed.forEach((s, j) => { store[j] = s.id; storeCounts[j] = s.n; });
+  renderOpen();
+  setPrompt('Backpack sorted', 1.1);
+}
+function sortChest() {
+  if (!chestSlots) return;
+  const packed = chestSlots.filter((s) => s.id);
+  packed.sort((a, b) => {
+    const rank = (id) => isBlock(id) ? 0 : isTool(id) ? 1 : isFood(id) ? 2 : 3;
+    return rank(a.id) - rank(b.id) || itemName(a.id).localeCompare(itemName(b.id)) || b.n - a.n;
+  });
+  for (let i = 0; i < 27; i++) chestSlots[i] = packed[i] ? { id: packed[i].id, n: packed[i].n } : { id: null, n: 0 };
+  renderOpen();
+  setPrompt('Chest sorted', 1.1);
+}
+
+function storeIntoPlayer(id, qty) {
   const max = maxStack(id);
-  for (let i = 0; i < 36 && n > 0; i++) {        // top up existing stacks first
+  for (let i = 0; i < 36 && qty > 0; i++) {
     const s = pslot(i);
     if (s.id === id && Number.isFinite(s.n) && s.n < max) {
-      const add = Math.min(n, max - s.n); setPslot(i, id, s.n + add); n -= add;
+      const add = Math.min(qty, max - s.n); setPslot(i, id, s.n + add); qty -= add;
     }
   }
-  for (let i = 0; i < 36 && n > 0; i++) {        // then fill empty slots
-    if (pslot(i).id == null) { const add = Math.min(n, max); setPslot(i, id, add); n -= add; }
+  for (let i = 0; i < 36 && qty > 0; i++) {
+    if (pslot(i).id == null) { const add = Math.min(qty, max); setPslot(i, id, add); qty -= add; }
+  }
+  return qty;
+}
+function quickStackIntoOpenContainer() {
+  let moved = 0;
+  for (let i = 0; i < 36; i++) {
+    const s = pslot(i);
+    if (!s.id || !Number.isFinite(s.n) || s.n <= 0) continue;
+    let remain = s.n;
+    if (chestOpen && chestSlots) remain = pushIntoChest(s.id, remain);
+    else if (furnaceOpen) remain = pushIntoFurnace(s.id, remain);
+    else break;
+    if (remain === s.n) continue;
+    moved += s.n - remain;
+    setPslot(i, remain > 0 ? s.id : null, remain);
   }
   renderOpen();
+  setPrompt(moved > 0 ? `Quick stacked ${moved} items` : 'Nothing to quick stack', 1.0);
+}
+function pullFromOpenContainer() {
+  let moved = 0;
+  if (chestOpen && chestSlots) {
+    for (let i = 0; i < 27; i++) {
+      const s = chestSlots[i];
+      if (!s.id || !Number.isFinite(s.n) || s.n <= 0) continue;
+      const remain = storeIntoPlayer(s.id, s.n);
+      if (remain === s.n) continue;
+      moved += s.n - remain;
+      chestSlots[i] = remain > 0 ? { id: s.id, n: remain } : { id: null, n: 0 };
+    }
+  } else if (furnaceOpen) {
+    for (const slot of [furOut, furInput, furFuel]) {
+      if (!slot.id || !Number.isFinite(slot.n) || slot.n <= 0) continue;
+      const remain = storeIntoPlayer(slot.id, slot.n);
+      if (remain === slot.n) continue;
+      moved += slot.n - remain;
+      if (remain > 0) slot.n = remain;
+      else { slot.id = null; slot.n = 0; }
+    }
+  }
+  renderOpen();
+  setPrompt(moved > 0 ? `Pulled ${moved} items` : 'Nothing to pull out', 1.0);
+}
+function bestToolSlot(blockType) {
+  let best = currentSlot;
+  let bestTime = breakTime(blockType, hotbar[currentSlot]);
+  for (let i = 0; i < 9; i++) {
+    const id = hotbar[i];
+    if (!id || !TOOLS[id] || !TOOLS[id].tool) continue;
+    const t = breakTime(blockType, id);
+    if (t < bestTime - 0.001) { best = i; bestTime = t; }
+  }
+  return best;
+}
+function maybeAutoSelectTool(blockType) {
+  if (gameMode !== 'survival') return;
+  const best = bestToolSlot(blockType);
+  if (best !== currentSlot) selectSlot(best);
+}
+
+function addToInventory(id, n, opts = {}) {
+  const wanted = n;
+  n = storeIntoPlayer(id, n);
+  renderOpen();
+  if (opts.notify !== false) {
+    const got = wanted - n;
+    if (got > 0) setPrompt(`Picked up ${got} ${itemName(id)}`, 0.95);
+    else setPrompt(`No room for ${itemName(id)}`, 0.95);
+  }
   return n <= 0;
 }
 
@@ -2101,6 +2698,10 @@ const RECIPES = [
   { out: ['torch', 4], shape: ['c', 's'], key: { c: 'coal', s: 'stick' } },
   { out: ['glass', 1], shapeless: ['sand', 'coal'] },   // quick glass; furnace also works
   { out: ['cheese_wedge', 1], shapeless: ['cheese'] },
+  { out: ['chest', 1], shape: ['ppp', 'p p', 'ppp'], key: { p: 'planks' } },
+  { out: ['door', 1], shape: ['pp', 'pp', 'pp'], key: { p: 'planks' } },
+  { out: ['trapdoor', 1], shape: ['ppp'], key: { p: 'planks' } },
+  { out: ['bed', 1], shape: ['lll', 'ppp'], key: { l: 'leaves', p: 'planks' } },   // leaves stand in for wool
 ];
 for (const [m, tier] of Object.entries(TOOLMAT)) {
   RECIPES.push({ out: [`${tier}_pickaxe`, 1], shape: ['mmm', ' s ', ' s '], key: { m, s: 'stick' } });
@@ -2149,6 +2750,20 @@ function craftTake() {
   if (cursor.id === oid) cursor.n += on; else { cursor.id = oid; cursor.n = on; }
   renderOpen();
 }
+function craftTakeToInventory() {
+  let made = 0;
+  while (true) {
+    const r = craftMatch(); if (!r) break;
+    const [oid, on] = r.out;
+    if (storeIntoPlayer(oid, on) !== 0) break;
+    for (let i = 0; i < 9; i++) if (craftSlots[i].id) {
+      craftSlots[i].n--;
+      if (craftSlots[i].n <= 0) { craftSlots[i].id = null; craftSlots[i].n = 0; }
+    }
+    made += on;
+  }
+  if (made > 0) { renderOpen(); setPrompt(`Crafted ${made}`, 0.9); }
+}
 
 // ---- furnace (single shared furnace inventory across all furnace blocks) ----
 const SMELT = { raw_iron: 'iron_ingot', raw_gold: 'gold_ingot', sand: 'glass', cobblestone: 'stone', raw_meat: 'cooked_meat' };
@@ -2183,14 +2798,73 @@ function updateFurnace(dt) {
 // ---- slot UI ----
 const invEl = document.getElementById('inv');
 const furnaceEl = document.getElementById('furnaceUI');
+const chestEl = document.getElementById('chestUI');
 const cursorEl = document.getElementById('cursorItem');
 const furFlameEl = document.getElementById('furFlame');
 let furnaceOpen = false;
+// ---- chests: each placed chest has its own 27-slot storage keyed by position ----
+let chestOpen = false, chestKey = null, chestSlots = null, chestCells = [];
+const chestStore = new Map();   // "x,y,z" -> Array(27) of {id,n}
+function getChestSlots(k) {
+  if (!chestStore.has(k)) chestStore.set(k, Array.from({ length: 27 }, () => ({ id: null, n: 0 })));
+  return chestStore.get(k);
+}
+const chestRef = (i) => ({
+  source: 'chest',
+  get: () => chestSlots[i],
+  set: (id, n) => { chestSlots[i] = (id && n > 0) ? { id, n } : { id: null, n: 0 }; },
+});
 
 function paintIslot(el, item) {
   if (!item || !item.id) { el.innerHTML = ''; return; }
   const q = (item.n > 1) ? `<span class="iq">${Number.isFinite(item.n) ? item.n : '∞'}</span>` : '';
-  el.innerHTML = `<div class="ic" style="background:${swatch(item.id)}"></div><span class="il">${itemName(item.id)}</span>${q}`;
+  el.innerHTML = `<div class="ic" style="${itemPreviewStyle(item.id)}"></div><span class="il">${itemName(item.id)}</span>${q}`;
+}
+function pushIntoChest(id, qty) {
+  const max = maxStack(id);
+  for (let i = 0; i < 27 && qty > 0; i++) {
+    const s = chestSlots[i];
+    if (s.id === id && Number.isFinite(s.n) && s.n < max) {
+      const add = Math.min(qty, max - s.n); chestSlots[i] = { id, n: s.n + add }; qty -= add;
+    }
+  }
+  for (let i = 0; i < 27 && qty > 0; i++) {
+    const s = chestSlots[i];
+    if (!s.id) { const add = Math.min(qty, max); chestSlots[i] = { id, n: add }; qty -= add; }
+  }
+  return qty;
+}
+function pushIntoFurnace(id, qty) {
+  if (SMELT[id]) {
+    if (!furInput.id || furInput.id === id) {
+      const add = Math.min(qty, 64 - furInput.n);
+      if (add > 0) { furInput.id = id; furInput.n += add; qty -= add; }
+    }
+  }
+  if (qty > 0 && FUEL[id]) {
+    if (!furFuel.id || furFuel.id === id) {
+      const add = Math.min(qty, 64 - furFuel.n);
+      if (add > 0) { furFuel.id = id; furFuel.n += add; qty -= add; }
+    }
+  }
+  return qty;
+}
+function quickMoveRef(ref, opts = {}) {
+  if (cursor.id) return;
+  const s = ref.get();
+  if (!s || !s.id) return;
+  let remain = s.n;
+  if (opts.out && opts.shiftTake) { opts.shiftTake(); return; }
+  if (ref.source === 'player') {
+    if (chestOpen && chestSlots) remain = pushIntoChest(s.id, remain);
+    else if (furnaceOpen) remain = pushIntoFurnace(s.id, remain);
+    else return;
+  } else {
+    remain = storeIntoPlayer(s.id, remain);
+  }
+  if (remain === s.n) return;
+  ref.set(remain > 0 ? s.id : null, remain);
+  renderOpen();
 }
 // generic click: ref = { get(), set(id,n) }
 function slotClick(ref, isOutput, onTake) {
@@ -2218,6 +2892,7 @@ function makeSlot(container, ref, opts = {}) {
   el.className = 'islot' + (opts.out ? ' out' : '');
   el.addEventListener('mousedown', (e) => {
     e.preventDefault();
+    if (e.shiftKey) { quickMoveRef(ref, opts); return; }
     if (e.button === 2 && !opts.out) rightSlotClick(ref);
     else slotClick(ref, opts.out, opts.onTake);
   });
@@ -2237,9 +2912,9 @@ function rightSlotClick(ref) {   // right-click: drop one / pick up half
   renderOpen();
 }
 
-const pRef = (i) => ({ get: () => pslot(i), set: (id, n) => setPslot(i, id, n) });
-const cRef = (i) => ({ get: () => craftSlots[i], set: (id, n) => { craftSlots[i].id = id || null; craftSlots[i].n = id ? n : 0; } });
-const fRef = (o) => ({ get: () => o, set: (id, n) => { o.id = id || null; o.n = id ? n : 0; } });
+const pRef = (i) => ({ source: 'player', get: () => pslot(i), set: (id, n) => setPslot(i, id, n) });
+const cRef = (i) => ({ source: 'craft', get: () => craftSlots[i], set: (id, n) => { craftSlots[i].id = id || null; craftSlots[i].n = id ? n : 0; } });
+const fRef = (o, source = 'furnace') => ({ source, get: () => o, set: (id, n) => { o.id = id || null; o.n = id ? n : 0; } });
 
 // build a backpack(27)+hotbar(9) pair of grids into the two given containers
 function buildPlayerGrids(backEl, hotEl) {
@@ -2258,7 +2933,7 @@ function buildInvDOM() {
   cg.innerHTML = ''; co.innerHTML = '';
   const order = craftSize === 2 ? [0, 1, 3, 4] : [0, 1, 2, 3, 4, 5, 6, 7, 8];
   const cc = order.map(i => makeSlot(cg, cRef(i)));
-  const oc = makeSlot(co, { get: () => { const r = craftMatch(); return r ? { id: r.out[0], n: r.out[1] } : { id: null, n: 0 }; }, set: () => {} }, { out: true, onTake: craftTake });
+  const oc = makeSlot(co, { source: 'craft_out', get: () => { const r = craftMatch(); return r ? { id: r.out[0], n: r.out[1] } : { id: null, n: 0 }; }, set: () => {} }, { out: true, onTake: craftTake, shiftTake: craftTakeToInventory });
   document.getElementById('invBackpack').innerHTML = '';
   document.getElementById('invHotbar').innerHTML = '';
   const pc = buildPlayerGrids(document.getElementById('invBackpack'), document.getElementById('invHotbar'));
@@ -2268,21 +2943,41 @@ function buildFurnaceDOM() {
   const fi = document.getElementById('furInput'), ff = document.getElementById('furFuel'), fo = document.getElementById('furOut');
   fi.innerHTML = ''; ff.innerHTML = ''; fo.innerHTML = '';
   fi.style.gridTemplateColumns = ff.style.gridTemplateColumns = fo.style.gridTemplateColumns = 'repeat(1, 46px)';
-  const a = makeSlot(fi, fRef(furInput));
-  const b = makeSlot(ff, fRef(furFuel));
-  const c = makeSlot(fo, fRef(furOut), { out: true });
+  const a = makeSlot(fi, fRef(furInput, 'furnace'));
+  const b = makeSlot(ff, fRef(furFuel, 'furnace'));
+  const c = makeSlot(fo, fRef(furOut, 'furnace_out'), { out: true, shiftTake: () => {
+    if (!furOut.id) return;
+    const remain = storeIntoPlayer(furOut.id, furOut.n);
+    if (remain === furOut.n) return;
+    furOut.n = remain;
+    if (furOut.n <= 0) { furOut.id = null; furOut.n = 0; }
+    renderOpen();
+  } });
   document.getElementById('furBackpack').innerHTML = '';
   document.getElementById('furHotbar').innerHTML = '';
   const pc = buildPlayerGrids(document.getElementById('furBackpack'), document.getElementById('furHotbar'));
   furCells = [a, b, c, ...pc];
 }
+function buildChestDOM() {
+  const cg = document.getElementById('chestGrid');
+  cg.innerHTML = '';
+  cg.style.gridTemplateColumns = 'repeat(9, 46px)';
+  const cc = [];
+  for (let i = 0; i < 27; i++) cc.push(makeSlot(cg, chestRef(i)));
+  document.getElementById('chestBackpack').innerHTML = '';
+  document.getElementById('chestHotbar').innerHTML = '';
+  const pc = buildPlayerGrids(document.getElementById('chestBackpack'), document.getElementById('chestHotbar'));
+  chestCells = [...cc, ...pc];
+}
 function renderOpen() {
   if (invOpen) for (const { el, ref } of invCells) paintIslot(el, ref.get());
   if (furnaceOpen) for (const { el, ref } of furCells) paintIslot(el, ref.get());
+  if (chestOpen) for (const { el, ref } of chestCells) paintIslot(el, ref.get());
   if (cursor.id) {
     cursorEl.style.display = 'block';
-    cursorEl.style.background = swatch(cursor.id);
-    cursorEl.innerHTML = (cursor.n > 1 ? `<span class="iq">${Number.isFinite(cursor.n) ? cursor.n : '∞'}</span>` : '');
+    cursorEl.innerHTML =
+      `<div class="chip" style="${itemPreviewStyle(cursor.id)}"></div>` +
+      (cursor.n > 1 ? `<span class="iq">${Number.isFinite(cursor.n) ? cursor.n : '∞'}</span>` : '');
   } else cursorEl.style.display = 'none';
 }
 addEventListener('mousemove', (e) => {
@@ -2301,15 +2996,22 @@ function openFurnace() {
   buildFurnaceDOM(); renderOpen();
   furnaceEl.classList.add('open'); controls.unlock();
 }
+function openChest(k) {
+  if (gameMode !== 'survival') return;
+  chestKey = k; chestSlots = getChestSlots(k);
+  chestOpen = true; lmbDown = false; resetMine();
+  buildChestDOM(); renderOpen();
+  chestEl.classList.add('open'); controls.unlock();
+}
 function dumpCursor() {        // return held + craft-grid items to inventory on close
   if (cursor.id) { addToInventory(cursor.id, cursor.n); cursor.id = null; cursor.n = 0; }
   for (let i = 0; i < 9; i++) if (craftSlots[i].id) { addToInventory(craftSlots[i].id, craftSlots[i].n); craftSlots[i].id = null; craftSlots[i].n = 0; }
 }
 function closeInvScreens() {
-  if (!invOpen && !furnaceOpen) return;
+  if (!invOpen && !furnaceOpen && !chestOpen) return;
   dumpCursor();
-  invOpen = false; furnaceOpen = false;
-  invEl.classList.remove('open'); furnaceEl.classList.remove('open');
+  invOpen = false; furnaceOpen = false; chestOpen = false; chestKey = null; chestSlots = null;
+  invEl.classList.remove('open'); furnaceEl.classList.remove('open'); chestEl.classList.remove('open');
   cursorEl.style.display = 'none';
   if (trackpadMode) renderer.domElement.focus(); else controls.lock();
 }
@@ -2325,6 +3027,8 @@ function saveGame() {
     store: [...store],
     storeCounts: [...storeCounts],
     furnace: { input: furInput, fuel: furFuel, out: furOut },
+    chests: [...chestStore.entries()],
+    respawn: { x: respawnPoint.x, y: respawnPoint.y, z: respawnPoint.z },
     currentSlot,
     gameMode,
     health,
@@ -2354,6 +3058,8 @@ setInterval(saveGame, 10000);
     if (f.fuel) { furFuel.id = f.fuel.id; furFuel.n = f.fuel.n; }
     if (f.out) { furOut.id = f.out.id; furOut.n = f.out.n; }
   }
+  if (data.chests) for (const [k, slots] of data.chests) chestStore.set(k, slots);
+  if (data.respawn) respawnPoint.set(data.respawn.x, data.respawn.y, data.respawn.z);
   if (typeof data.health === 'number') health = Math.max(0, Math.min(MAX_HP, data.health));
   if (typeof data.hunger === 'number') hunger = Math.max(0, Math.min(MAX_HUNGER, data.hunger));
   if (data.gameMode === 'creative') {
@@ -2383,10 +3089,10 @@ function ensureSpawnChunks() {
 
 const menuGrid = document.getElementById('menuGrid');
 for (const id of [...Object.keys(TOOLS), ...Object.keys(ITEMS), ...Object.keys(FOODS), ...TYPES]) {
+  if (OPEN_TYPES.has(id)) continue;   // open door/trapdoor are internal states, not buildable items
   const tile = document.createElement('div');
   tile.className = 'tile';
-  tile.style.background = swatch(id);
-  tile.textContent = itemName(id);
+  tile.innerHTML = `<div class="chip" style="${itemPreviewStyle(id)}"></div><span class="label">${itemName(id)}</span>`;
   tile.addEventListener('click', () => { hotbar[currentSlot] = id; counts[currentSlot] = Infinity; paintSlot(currentSlot); buildHeld(id); closeMenu(); });
   menuGrid.appendChild(tile);
 }
@@ -2733,7 +3439,7 @@ function openChat() {
 }
 function closeChat() {
   chatOpen = false; chatInputEl.style.display = 'none'; chatInputEl.blur();
-  if (!trackpadMode && !invOpen && !furnaceOpen && !menuOpen && !dead) controls.lock();
+  if (!trackpadMode && !invOpen && !furnaceOpen && !chestOpen && !menuOpen && !dead) controls.lock();
 }
 function submitChat() {
   const text = chatInputEl.value.trim();
@@ -2796,13 +3502,123 @@ if (MULTIPLAYER) {
   });
 }
 
+// ============================================================ weather + shooting stars + boss bar
+const bossBarEl = document.getElementById('bossBar');
+const bossBarNameEl = document.getElementById('bossBarName');
+const bossBarFillEl = document.getElementById('bossBarFill');
+const toastEl = document.getElementById('toast');
+const toastTitleEl = document.getElementById('toastTitle');
+const toastSubEl = document.getElementById('toastSub');
+let toastTimer = 0;
+
+function showToast(title, sub, duration = 2.8) {
+  toastTitleEl.textContent = title;
+  toastSubEl.textContent = sub || '';
+  toastEl.classList.add('show');
+  toastTimer = duration;
+}
+
+function updateWeather(dt) {
+  weatherTimer -= dt;
+  if (weatherTimer <= 0) {
+    weatherPhase = weatherPhase === 'clear' ? 'rain' : 'clear';
+    weatherTimer = weatherPhase === 'rain' ? 25 + Math.random() * 35 : 70 + Math.random() * 110;
+    rainSystem.visible = weatherPhase === 'rain';
+    if (weatherPhase === 'rain') showToast('Rain', 'It started raining', 2.2);
+    else showToast('Clear', 'The rain has stopped', 2.2);
+  }
+  if (toastTimer > 0) {
+    toastTimer -= dt;
+    if (toastTimer <= 0) toastEl.classList.remove('show');
+  }
+  if (weatherPhase !== 'rain') {
+    if (lightningFlash > 0) { lightningFlash -= dt * 4; if (lightningFlash < 0) lightningFlash = 0; }
+    return;
+  }
+  rainScroll = (rainScroll + 16 * dt) % 36;
+  const pp = controls.getObject().position;
+  for (let i = 0; i < RAIN_N; i++) {
+    rainPos[i*3]   = pp.x + rainXZ[i*2];
+    rainPos[i*3+1] = pp.y + 30 - ((rainScroll + i * 36 / RAIN_N) % 36);
+    rainPos[i*3+2] = pp.z + rainXZ[i*2+1];
+  }
+  rainGeo.attributes.position.needsUpdate = true;
+  lightningFlash = Math.max(0, lightningFlash - dt * 3);
+  if (Math.random() < dt * 0.015) {
+    lightningFlash = 1;
+    setPrompt('⚡ Lightning!', 1.1);
+    const pp2 = controls.getObject().position;
+    let closest = null, bestD = 22;
+    for (const mob of mobs) {
+      const d = mob.group.position.distanceTo(pp2);
+      if (d < bestD) { bestD = d; closest = mob; }
+    }
+    if (closest) {
+      const dir = new THREE.Vector3(1, 0, 0);
+      hurtMob(closest, 8, dir);
+      spawnParticles(closest.group.position.x - 0.5, closest.group.position.y, closest.group.position.z - 0.5, 0xffffaa, 12);
+    }
+    spawnParticles(pp2.x + (Math.random()-0.5)*10 - 0.5, pp2.y, pp2.z + (Math.random()-0.5)*10 - 0.5, 0xffffcc, 8);
+  }
+}
+
+function updateShootingStars(dt) {
+  if (isNight && !partyModeT && weatherPhase === 'clear') {
+    nextStarT -= dt;
+    if (nextStarT <= 0) {
+      nextStarT = 10 + Math.random() * 22;
+      const pp = controls.getObject().position;
+      const sx = pp.x + (Math.random() - 0.5) * 220;
+      const sy = pp.y + 70 + Math.random() * 80;
+      const sz = pp.z + (Math.random() - 0.5) * 220;
+      const dir = new THREE.Vector3((Math.random()-0.5)*1.2, -0.4 - Math.random()*0.3, (Math.random()-0.5)*1.2).normalize();
+      const trail = 18;
+      const startPt = new THREE.Vector3(sx, sy, sz);
+      const endPt = startPt.clone().addScaledVector(dir, -trail);
+      const geo = new THREE.BufferGeometry().setFromPoints([startPt, endPt]);
+      const mat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, fog: false });
+      const line = new THREE.Line(geo, mat);
+      scene.add(line);
+      shootingStars.push({ line, pos: startPt.clone(), dir, speed: 90 + Math.random()*40, life: 1.4, maxLife: 1.4, trail });
+    }
+  }
+  for (let i = shootingStars.length - 1; i >= 0; i--) {
+    const s = shootingStars[i];
+    s.life -= dt;
+    const t = Math.max(0, s.life / s.maxLife);
+    s.pos.addScaledVector(s.dir, s.speed * dt);
+    const pts = [s.pos.clone(), s.pos.clone().addScaledVector(s.dir, -s.trail * t)];
+    s.line.geometry.setFromPoints(pts);
+    s.line.material.opacity = t * 0.92;
+    if (s.life <= 0) { scene.remove(s.line); s.line.geometry.dispose(); shootingStars.splice(i, 1); }
+  }
+}
+
+function updateBossBar() {
+  const BOSS_KINDS = new Set(['Dragon', 'Hydra']);
+  const pp = controls.getObject().position;
+  let best = null;
+  for (const mob of mobs) {
+    if (!BOSS_KINDS.has(mob.kind.name)) continue;
+    const d = mob.group.position.distanceTo(pp);
+    if (d < mob.kind.detect * 1.6 && (!best || d < best.d)) best = { mob, d };
+  }
+  if (best) {
+    bossBarEl.classList.remove('hidden');
+    bossBarNameEl.textContent = best.mob.kind.name.toUpperCase();
+    const pct = Math.max(0, best.mob.hp / best.mob.kind.hp * 100).toFixed(1);
+    bossBarFillEl.style.width = pct + '%';
+  } else {
+    bossBarEl.classList.add('hidden');
+  }
+}
+
 // ============================================================ loop
+const MAX_SIM_DT = 1 / 90;
+const MAX_SIM_SLICES = 5;
 let prev = performance.now(), fps = 60, infoT = 0;
-function animate() {
-  requestAnimationFrame(animate);
-  const now = performance.now();
-  const dt = Math.min((now - prev) / 1000, 0.05);
-  prev = now;
+
+function tickFrame(dt, frameDt) {
   clock += dt;
   fps += ((1 / Math.max(dt, 0.0001)) - fps) * 0.1;
 
@@ -2815,6 +3631,13 @@ function animate() {
   isNight = daylight < 0.25;
   const dusk = Math.max(0, 1 - Math.abs(sunLift) * 5) * (1 - sf);
   skyNow.copy(skyNight).lerp(skyDay, daylight).lerp(skyDusk, dusk * 0.55);
+  if (partyModeT > 0) {
+    const rave = new THREE.Color().setHSL((clock * 0.22) % 1, 0.95, 0.62);
+    skyNow.lerp(rave, 0.4);
+    partyModeT = Math.max(0, partyModeT - dt);
+  }
+  if (weatherPhase === 'rain') skyNow.lerp(skyRain, 0.35);
+  if (lightningFlash > 0) skyNow.lerp(new THREE.Color(0xeef8ff), lightningFlash * 0.6);
   scene.background.copy(skyNow).lerp(skySpace, sf);
   scene.fog.color.copy(scene.background);
   scene.fog.far = 100 + sf * 540;   // ground: hide streaming edge; altitude: open up for space view
@@ -2828,6 +3651,8 @@ function animate() {
   skyMoon.userData.craterMat.opacity = 0.28 + sf * 0.22;
   gEff = 28 - 23 * sf;
   eatCooldown = Math.max(0, eatCooldown - dt);
+  jumpBufferT = Math.max(0, jumpBufferT - dt);
+  coyoteT = Math.max(0, coyoteT - dt);
 
   if (controlsActive()) arrowLook(dt);
   updateGravityFrame(dt);   // pick the up-axis for this frame and orient the camera
@@ -2835,7 +3660,7 @@ function animate() {
   if (dead) {
     deathTimer -= dt;
     if (deathTimer <= 0) respawn();
-  } else if (controlsActive() && !invOpen && !furnaceOpen) {
+  } else if (controlsActive() && !invOpen && !furnaceOpen && !chestOpen) {
     const pos = controls.getObject().position;
     // gravity strength: fixed & controllable on a cube planet, else weakens with altitude
     const gNow = curPlanet ? PLANET_GRAVITY : gEff;
@@ -2881,7 +3706,8 @@ function animate() {
         vUp = Math.max(vUp, -3.0);
         vUp *= Math.pow(0.55, dt);
       } else {
-        if (keys['Space'] && grounded(pos)) vUp = JUMP;
+        if (grounded(pos)) coyoteT = 0.12;
+        if (jumpBufferT > 0 && coyoteT > 0) { vUp = JUMP; jumpBufferT = 0; coyoteT = 0; }
         vUp -= gNow * dt;
       }
       const d = vUp * dt;
@@ -2894,7 +3720,11 @@ function animate() {
         const fall = airMaxY - projY;
         const feetBlock = world.get(key(
           Math.floor(pos.x - gUp.x * PLAYER_H), Math.floor(pos.y - gUp.y * PLAYER_H), Math.floor(pos.z - gUp.z * PLAYER_H)));
-        if (gameMode === 'survival' && fall > 4 && feetBlock !== 'water' && !inWater) damagePlayer(Math.floor(fall - 3));
+        if ((feetBlock === 'bed' || feetBlock === 'cheese') && fall > 1.2) {
+          vUp = Math.max(vUp, Math.min(11, 4 + fall * (feetBlock === 'cheese' ? 1.4 : 1.05)));
+          spawnConfettiBurst(pos.x - 0.5, pos.y - 1.5, pos.z - 0.5, feetBlock === 'cheese' ? 14 : 8);
+          setPrompt(feetBlock === 'cheese' ? 'Boing! Cheese trampoline' : 'Boing! Bed bounce', 0.9);
+        } else if (gameMode === 'survival' && fall > 4 && feetBlock !== 'water' && !inWater) damagePlayer(Math.floor(fall - 3));
         airMaxY = projY;
       }
       wasGrounded = g;
@@ -2910,15 +3740,14 @@ function animate() {
     updateAim();
   }
 
-  streamChunks(2);   // load up to 2 new chunks/frame near the player; unload distant ones
-  flushDirty();      // rebuild any chunk meshes touched by edits/explosions this frame
-
   // shadow sun follows the player so the shadow frustum always covers the loaded world
   { const pp = controls.getObject().position;
     sun.position.set(pp.x + sunOrbitOffset.x, pp.y + sunOrbitOffset.y, pp.z + sunOrbitOffset.z);
     sun.target.position.set(pp.x, pp.y, pp.z); sun.target.updateMatrixWorld();
     playerLight.position.set(pp.x, pp.y - 0.3, pp.z);
     playerLight.intensity = hotbar[currentSlot] === 'torch' ? (isNight || pp.y < 12 ? 1.35 : 0.55) : 0;
+    if (partyModeT > 0) playerLight.color.setHSL((clock * 0.35) % 1, 0.9, 0.62);
+    else playerLight.color.setHex(0xffb45a);
   }
 
   for (let i = mobs.length - 1; i >= 0; i--) updateMob(mobs[i], dt);
@@ -2927,7 +3756,7 @@ function animate() {
   if (!MULTIPLAYER && spawnTimer <= 0) {
     spawnTimer = 4;
     const pp = controls.getObject().position;
-    if (!isNight && passiveCount() < 16 && mobs.length < MOB_MAX) {
+    if (!isNight && passiveCount() < 28 && mobs.length < MOB_MAX) {
       const s = surfaceNear(pp, 20, 44);
       if (s) { const m = spawnPassive(s.x, s.z); m.home = { x: s.x, z: s.z }; m.leash = SIZE; }
     }
@@ -2955,9 +3784,14 @@ function animate() {
   updateBullets(dt);
   updateFireballs(dt);
   updateLeftAction(dt);
+  updateAutoToggles(dt);
+  updateWeather(dt);
+  updateShootingStars(dt);
+  updateBossBar();
   updateFurnace(dt);
   updateViewmodel(dt);
   syncMultiplayer(dt);
+  updatePrompt(dt);
 
   infoT += dt;
   if (infoT > 0.25) {
@@ -2966,10 +3800,45 @@ function animate() {
     info.textContent =
       `${gameMode === 'survival' ? 'SURVIVAL' : 'CREATIVE'}   ${isNight ? 'NIGHT' : 'DAY'}   FPS ${fps.toFixed(0)}\n` +
       `XYZ ${p.x.toFixed(1)} ${(p.y - PLAYER_H).toFixed(1)} ${p.z.toFixed(1)}\n` +
-      `Mobs ${mobs.length + netMobs.size}` + (flying ? '   FLYING' : trackpadMode ? '   TRACKPAD LOOK' : '');
+      `Mobs ${mobs.length + netMobs.size}   Scale ${renderPixelRatio.toFixed(2)}` +
+      (flying ? '   FLYING' : trackpadMode ? '   TRACKPAD LOOK' : '');
     updateLocator();
   }
+}
 
+function tuneRenderScale(dt, frameDt) {
+  scaleTuneT += dt;
+  if (scaleTuneT < 1.25) return;
+  scaleTuneT = 0;
+  const low = fps < 42 || frameDt > 0.03;
+  const high = fps > 57 && frameDt < 0.017;
+  const next = low ? Math.max(0.75, renderPixelRatio - 0.125)
+    : high ? Math.min(MAX_PIXEL_RATIO, renderPixelRatio + 0.125)
+      : renderPixelRatio;
+  if (Math.abs(next - renderPixelRatio) < 0.001) return;
+  renderPixelRatio = next;
+  renderer.setPixelRatio(renderPixelRatio);
+  renderer.setSize(innerWidth, innerHeight, false);
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const now = performance.now();
+  const frameDt = Math.min((now - prev) / 1000, 0.08);
+  prev = now;
+  let remaining = frameDt;
+  let slices = 0;
+  while (remaining > 0 && slices < MAX_SIM_SLICES) {
+    const step = Math.min(remaining, MAX_SIM_DT);
+    tickFrame(step, frameDt);
+    remaining -= step;
+    slices++;
+  }
+  if (remaining > 0) tickFrame(remaining, frameDt);
+  const chunkBudget = frameDt < 0.012 ? 3 : frameDt < 0.02 ? 2 : 1;
+  streamChunks(chunkBudget);
+  flushDirty(frameDt < 0.018 ? 3 : 1);
+  tuneRenderScale(frameDt, frameDt);
   if (location.search.includes('norender')) return;
   renderer.clear();
   renderer.render(scene, camera);
