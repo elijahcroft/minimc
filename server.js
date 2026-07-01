@@ -31,6 +31,9 @@ let nextId = 1;
 
 // ============================================================ class quest
 let quest = { active: false, type: '', label: '', target: 0, progress: 0 };
+// tracks which blueprint (if any) the teacher assigned, so late-joining/reconnecting
+// students can be caught up via room:init instead of only a live 'blueprint:set' broadcast
+let blueprint = null;
 function questSnapshot() {
   return { active: quest.active, type: quest.type, label: quest.label, target: quest.target, progress: quest.progress };
 }
@@ -360,6 +363,15 @@ function leaderboardSnapshot() {
     .filter(p => !p.teacher)
     .map(p => ({ id: p.id, name: p.name, kills: p.kills, blocksPlaced: p.blocksPlaced, quest: p.questContrib }));
 }
+function sessionReportSnapshot() {
+  const now = Date.now();
+  return [...players.values()]
+    .filter(p => !p.teacher)
+    .map(p => ({
+      id: p.id, name: p.name, kills: p.kills, blocksPlaced: p.blocksPlaced,
+      quest: p.questContrib, connectedSec: Math.max(0, Math.round((now - p.joinedAt) / 1000)),
+    }));
+}
 function mobSnapshot() {
   const list = [];
   for (const m of mobs.values()) {
@@ -395,6 +407,7 @@ const messageHandlers = {
       transform: normalizeTransform(message.transform),
       alive: true,
       kills: 0, blocksPlaced: 0, questContrib: 0,
+      joinedAt: Date.now(),
     };
     players.set(ws.playerId, player);
     sendJson(ws, {
@@ -405,6 +418,7 @@ const messageHandlers = {
       edits: [...blockEdits.entries()].map(([k, type]) => ({ key: k, type })),
       mobs: mobSnapshot(),
       quest: questSnapshot(),
+      blueprint,
       leaderboard: leaderboardSnapshot(),
     });
     broadcast({ type: 'player:joined', player }, ws);
@@ -502,6 +516,7 @@ const messageHandlers = {
     const target = Math.max(1, Math.min(9999, Number(message.target) || 10));
     const label = String(message.label || '').slice(0, 48) || `${type} ${target}`;
     quest = { active: true, type, label, target, progress: 0 };
+    if (blueprint) { blueprint = null; broadcast({ type: 'blueprint:clear' }); }
     broadcast({ type: 'quest:update', quest: questSnapshot() });
     broadcast({ type: 'system', text: `Class quest: ${label}` });
   },
@@ -509,6 +524,7 @@ const messageHandlers = {
   'teacher:clearQuest'(ws) {
     if (!ws.isTeacher) return;
     quest = { active: false, type: '', label: '', target: 0, progress: 0 };
+    if (blueprint) { blueprint = null; broadcast({ type: 'blueprint:clear' }); }
     broadcast({ type: 'quest:update', quest: questSnapshot() });
   },
 
@@ -568,6 +584,35 @@ const messageHandlers = {
     const n = Math.max(1, Math.min(64, Number(message.n) || 1));
     advanceQuest(n);
     player.questContrib += n;
+  },
+
+  // blueprint lessons reuse the class-quest channel: each student's own build
+  // progress (cell count) is reported via 'quest:progress' qtype 'blueprint',
+  // so questContrib/leaderboard just work without extra plumbing.
+  'teacher:setBlueprint'(ws, message) {
+    if (!ws.isTeacher) return;
+    const id = String(message.id || '').slice(0, 32);
+    const name = String(message.name || '').slice(0, 48);
+    if (!id || !name) return;
+    const target = Math.max(1, Math.min(9999, Number(message.cellCount) || 1));
+    quest = { active: true, type: 'blueprint', label: `Blueprint: ${name}`, target, progress: 0 };
+    blueprint = { id, name };
+    broadcast({ type: 'blueprint:set', id, name });
+    broadcast({ type: 'quest:update', quest: questSnapshot() });
+    broadcast({ type: 'system', text: `Blueprint challenge: ${name}` });
+  },
+
+  'teacher:clearBlueprint'(ws) {
+    if (!ws.isTeacher) return;
+    quest = { active: false, type: '', label: '', target: 0, progress: 0 };
+    blueprint = null;
+    broadcast({ type: 'blueprint:clear' });
+    broadcast({ type: 'quest:update', quest: questSnapshot() });
+  },
+
+  'teacher:sessionReport'(ws) {
+    if (!ws.isTeacher) return;
+    sendJson(ws, { type: 'session:report', players: sessionReportSnapshot() });
   },
 
   'item:gift'(ws, message, player) {

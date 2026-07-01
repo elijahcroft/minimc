@@ -159,12 +159,39 @@
     </div>
     <button id="spawnBossBtn" type="button" class="bossBtn">⚔ BOSS RAID</button>
   </div>
+  <div class="questSection">
+    <div class="questSectionHead">BLUEPRINT</div>
+    <div class="questRow">
+      <select id="blueprintSelect">
+        <option value="house">Small House</option>
+        <option value="staircase">Staircase</option>
+        <option value="pyramid">Pyramid</option>
+        <option value="letter_t">Letter T</option>
+      </select>
+    </div>
+    <div class="questRow">
+      <button id="setBlueprintBtn" type="button">Send</button>
+      <button id="clearBlueprintBtn" type="button">Clear</button>
+    </div>
+  </div>
   <div class="actions">
     <button id="tpArenaBtn" type="button">🌋 TP to Arena</button>
     <button id="tpBackBtn" type="button">↩ Bring Back</button>
   </div>
   <button id="spawnArenaBossBtn" type="button" class="bossBtn">🐉 ARENA BOSS</button>
   <button id="spawnColossusBtn" type="button" class="bossBtn">🌋 MAGMA COLOSSUS</button>
+  <button id="sessionReportBtn" type="button">📋 Session Report</button>
+</div>
+<div id="sessionReportPanel" class="hidden">
+  <h3>SESSION REPORT</h3>
+  <table>
+    <thead><tr><th>Student</th><th>Blocks</th><th>Kills</th><th>Quest</th><th>Time</th></tr></thead>
+    <tbody id="sessionReportBody"></tbody>
+  </table>
+  <div class="actions">
+    <button id="downloadReportBtn" type="button">Download CSV</button>
+    <button id="closeReportBtn" type="button">Close</button>
+  </div>
 </div>
 <div id="mpStatus" class="hidden"></div>
 <div id="leaderboard" class="hidden">
@@ -1794,6 +1821,8 @@ const resetWorldBtn = document.getElementById('resetWorld');
 const mpStatus = document.getElementById('mpStatus');
 const leaderboardEl = document.getElementById('leaderboard');
 const leaderboardBodyEl = document.getElementById('leaderboardBody');
+const sessionReportPanel = document.getElementById('sessionReportPanel');
+const sessionReportBodyEl = document.getElementById('sessionReportBody');
 let menuOpen = false;
 let invOpen = false;     // survival inventory/crafting screen open
 let trackpadMode = false;
@@ -3551,10 +3580,22 @@ function meleeAttack(mob) {
   if (mob.netId != null) { attackRemoteMob(mob, dmg, dir); flashNetMob(mob.netId); }
   else hurtMob(mob, dmg, dir);
 }
+// one-line facts shown the first time a student mines each ore/block type this session
+const FACTS = {
+  coal_ore: 'Coal is mostly carbon, formed from ancient swamp plants over millions of years.',
+  iron_ore: 'Iron is the most common element on Earth by mass, most of it in the planet\'s core.',
+  diamond_ore: 'Diamond is pure carbon — the hardest natural material on Earth.',
+  gold: 'Gold barely reacts with anything, which is why ancient gold artifacts still shine today.',
+};
+const seenFacts = new Set();
 function breakBlock(x, y, z) {
   const k = key(x, y, z);
   const broken = world.get(k);
   if (!broken || broken === 'bedrock') return;
+  if (FACTS[broken] && !seenFacts.has(broken)) {
+    seenFacts.add(broken);
+    showToast(BLOCKS[broken].name, FACTS[broken], 4.5);
+  }
   for (let i = autoToggleQueue.length - 1; i >= 0; i--) {
     const q = autoToggleQueue[i];
     if (q.x === x && q.y === y && q.z === z) autoToggleQueue.splice(i, 1);
@@ -4825,6 +4866,7 @@ const roomMessageHandlers = {
     for (const player of message.players || []) upsertRemotePlayer(player);
     syncNetMobs(message.mobs || []);
     if (message.quest) updateQuestDisplay(message.quest);
+    if (message.blueprint) startBlueprint(message.blueprint.id, message.blueprint.name);
     if (message.leaderboard) updateLeaderboard(message.leaderboard);
     if (IS_TEACHER) { teacherPanel.classList.remove('hidden'); paintStudentList(); }
   },
@@ -4856,6 +4898,9 @@ const roomMessageHandlers = {
     const p = controls.getObject().position;
     spawnConfettiBurst(p.x - 0.5, p.y - 0.8, p.z - 0.5, 40);
   },
+  'blueprint:set'(message) { startBlueprint(message.id, message.name); },
+  'blueprint:clear'() { stopBlueprint(); },
+  'session:report'(message) { showSessionReport(message.players || []); },
   'item:received'(message) {
     addToInventory(message.item, message.count, { notify: false });
     showToast(`Gift from ${message.from}!`, `+${message.count} ${itemName(message.item)}`, 2.5);
@@ -5142,6 +5187,129 @@ function updateLocator() {
   ).join('');
 }
 
+// ============================================================ blueprint lessons
+// Hardcoded build-target shapes: {name, cells:[{dx,dy,dz,type}]}, offsets are
+// relative to a per-student anchor placed near them when the teacher assigns one.
+function makeHouseBlueprint() {
+  const cells = [], W = 5, H = 3;
+  for (let x = 0; x < W; x++) for (let z = 0; z < W; z++) cells.push({ dx: x, dy: 0, dz: z, type: 'planks' });
+  for (let y = 1; y <= H; y++) for (let x = 0; x < W; x++) for (let z = 0; z < W; z++) {
+    if (x !== 0 && x !== W - 1 && z !== 0 && z !== W - 1) continue;   // walls only
+    if (x === 2 && z === 0 && y <= 2) continue;                       // door gap
+    cells.push({ dx: x, dy: y, dz: z, type: 'cobblestone' });
+  }
+  for (let x = -1; x <= W; x++) for (let z = -1; z <= W; z++) cells.push({ dx: x, dy: H + 1, dz: z, type: 'planks' });
+  return { id: 'house', name: 'Small House', cells };
+}
+function makeStaircaseBlueprint() {
+  const cells = [], STEPS = 6, DEPTH = 3;
+  for (let i = 0; i < STEPS; i++) for (let y = 0; y <= i; y++) for (let w = 0; w < DEPTH; w++)
+    cells.push({ dx: i, dy: y, dz: w, type: 'stone' });
+  return { id: 'staircase', name: 'Staircase', cells };
+}
+function makePyramidBlueprint() {
+  const cells = [], BASE = 7, levels = Math.ceil(BASE / 2);
+  for (let level = 0; level < levels; level++) {
+    const size = BASE - level * 2;
+    if (size <= 0) break;
+    for (let x = 0; x < size; x++) for (let z = 0; z < size; z++)
+      cells.push({ dx: level + x, dy: level, dz: level + z, type: 'sand' });
+  }
+  return { id: 'pyramid', name: 'Pyramid', cells };
+}
+function makeLetterTBlueprint() {
+  const cells = [], W = 5, H = 5, midX = Math.floor(W / 2);
+  for (let x = 0; x < W; x++) cells.push({ dx: x, dy: H - 1, dz: 0, type: 'glass' });
+  for (let y = 0; y < H - 1; y++) cells.push({ dx: midX, dy: y, dz: 0, type: 'glass' });
+  return { id: 'letter_t', name: 'Letter T', cells };
+}
+const BLUEPRINTS = [makeHouseBlueprint(), makeStaircaseBlueprint(), makePyramidBlueprint(), makeLetterTBlueprint()];
+
+let activeBlueprint = null, bpLastCount = 0, bpInterval = null, blueprintMesh = null;
+const _bpMatrix = new THREE.Matrix4();
+function setupBlueprintMesh(n) {
+  if (blueprintMesh) { scene.remove(blueprintMesh); blueprintMesh.geometry.dispose(); blueprintMesh.material.dispose(); }
+  blueprintMesh = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(1.01, 1.01, 1.01),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.22, depthWrite: false }),
+    n);
+  blueprintMesh.frustumCulled = false;
+  scene.add(blueprintMesh);
+}
+// hides an instance for each cell already correctly placed in the world, so the
+// remaining ghost outline shows only what's left to build
+function updateBlueprintGhost() {
+  if (!activeBlueprint || !blueprintMesh) return 0;
+  const { anchor, cells } = activeBlueprint;
+  let placed = 0;
+  for (let i = 0; i < cells.length; i++) {
+    const c = cells[i];
+    const wx = anchor.x + c.dx, wy = anchor.y + c.dy, wz = anchor.z + c.dz;
+    if (world.get(key(wx, wy, wz)) === c.type) { placed++; _bpMatrix.makeScale(0, 0, 0); }
+    else _bpMatrix.makeTranslation(wx + 0.5, wy + 0.5, wz + 0.5);
+    blueprintMesh.setMatrixAt(i, _bpMatrix);
+  }
+  blueprintMesh.instanceMatrix.needsUpdate = true;
+  return placed;
+}
+function checkBlueprintProgress() {
+  if (!activeBlueprint) return;
+  const placed = updateBlueprintGhost();
+  if (placed > bpLastCount) {
+    const delta = placed - bpLastCount;
+    bpLastCount = placed;
+    if (multiplayerJoined) sendRoom({ type: 'quest:progress', qtype: 'blueprint', n: delta });
+  } else {
+    bpLastCount = placed;
+  }
+}
+function startBlueprint(id, name) {
+  const bp = BLUEPRINTS.find(b => b.id === id);
+  if (!bp) return;
+  const pp = controls.getObject().position;
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  dir.y = 0;
+  if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1); else dir.normalize();
+  const ax = Math.round(pp.x + dir.x * 5), az = Math.round(pp.z + dir.z * 5);
+  activeBlueprint = { ...bp, anchor: { x: ax, y: surfaceY(ax, az), z: az } };
+  bpLastCount = 0;
+  setupBlueprintMesh(bp.cells.length);
+  updateBlueprintGhost();
+  if (bpInterval) clearInterval(bpInterval);
+  bpInterval = setInterval(checkBlueprintProgress, 1000);
+  showToast('Blueprint Challenge', name || bp.name, 3);
+}
+function stopBlueprint() {
+  activeBlueprint = null;
+  if (bpInterval) { clearInterval(bpInterval); bpInterval = null; }
+  if (blueprintMesh) blueprintMesh.visible = false;
+}
+
+// ============================================================ teacher session report
+function showSessionReport(players) {
+  sessionReportData = players;
+  const fmtTime = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+  sessionReportBodyEl.innerHTML = players.map(p =>
+    `<tr><td>${esc(p.name)}</td><td>${p.blocksPlaced}</td><td>${p.kills}</td><td>${p.quest}</td><td>${fmtTime(p.connectedSec)}</td></tr>`
+  ).join('');
+  sessionReportPanel.classList.remove('hidden');
+}
+let sessionReportData = [];
+function downloadSessionReportCSV() {
+  const header = 'Name,Blocks Placed,Kills,Quest Contribution,Time Connected (s)';
+  const rows = sessionReportData.map(p => [p.name, p.blocksPlaced, p.kills, p.quest, p.connectedSec]
+    .map(v => `"${String(v).replace(/"/g, '""')}"`).join(','));
+  const csv = [header, ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `session-report-${Date.now()}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 if (MULTIPLAYER) {
   if (IS_TEACHER) {
     connectMultiplayer('Teacher', true);
@@ -5190,6 +5358,22 @@ if (MULTIPLAYER) {
   document.getElementById('spawnColossusBtn').addEventListener('click', () => {
     if (confirm('Summon the Magma Colossus? It telegraphs its attacks — students should strike it only when it rests. Make sure the class is in the arena first.')) sendRoom({ type: 'teacher:spawnArenaColossus' });
   });
+  document.getElementById('setBlueprintBtn').addEventListener('click', () => {
+    const id = document.getElementById('blueprintSelect').value;
+    const bp = BLUEPRINTS.find(b => b.id === id);
+    if (!bp) return;
+    sendRoom({ type: 'teacher:setBlueprint', id: bp.id, name: bp.name, cellCount: bp.cells.length });
+  });
+  document.getElementById('clearBlueprintBtn').addEventListener('click', () => {
+    sendRoom({ type: 'teacher:clearBlueprint' });
+  });
+  document.getElementById('sessionReportBtn').addEventListener('click', () => {
+    sendRoom({ type: 'teacher:sessionReport' });
+  });
+  document.getElementById('closeReportBtn').addEventListener('click', () => {
+    sessionReportPanel.classList.add('hidden');
+  });
+  document.getElementById('downloadReportBtn').addEventListener('click', downloadSessionReportCSV);
 }
 
 // ============================================================ weather + shooting stars + boss bar

@@ -385,8 +385,9 @@
   #studentList { margin: 8px 0; line-height: 1.5; max-height: 160px; overflow: auto; }
   .studentRow { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 3px 0; }
   .studentRow button { flex: 0 0 auto; padding: 3px 7px; }
-  #teacherPanel .actions { display: flex; gap: 6px; }
-  #teacherPanel button { flex: 1; padding: 6px 4px; background: rgba(45,108,223,0.85); }
+  #teacherPanel .actions, #sessionReportPanel .actions { display: flex; gap: 6px; }
+  #teacherPanel button, #sessionReportPanel button { flex: 1; padding: 6px 4px; background: rgba(45,108,223,0.85); border: 2px solid rgba(255,255,255,0.25); color: #fff; font: 12px monospace; cursor: pointer; }
+  #sessionReportPanel button:hover { border-color: #fff; }
   #mpStatus {
     position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 12;
     background: var(--ui-bg); padding: 5px 9px; border-radius: 0; font-size: 12px;
@@ -474,6 +475,7 @@
   .questRow select, .questRow input { flex: 1; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid rgba(255,255,255,0.2); font: 11px monospace; padding: 3px 4px; }
   .questRow input { flex: 0 0 52px; }
   .bossBtn { width: 100%; margin-top: 2px; background: rgba(150,30,30,0.85) !important; }
+  #sessionReportBtn { width: 100%; margin-top: 6px; }
 
   #toast {
     position: fixed; top: 60px; left: 50%; transform: translateX(-50%) translateY(-6px);
@@ -500,3 +502,18 @@
   #leaderboard th, #leaderboard td { text-align: left; padding: 2px 4px; font-size: 11px; }
   #leaderboard th { color: rgba(255,255,255,0.55); font-weight: normal; border-bottom: 1px solid rgba(255,255,255,0.15); }
   #leaderboard td:nth-child(n+2), #leaderboard th:nth-child(n+2) { text-align: center; }
+
+  #sessionReportPanel {
+    position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 14;
+    width: min(480px, calc(100vw - 24px)); max-height: 80vh; overflow: auto;
+    background: var(--ui-bg); padding: 12px; font-size: 12px;
+    border: 2px solid var(--ui-edge-dark);
+    border-top-color: var(--ui-edge-light);
+    border-left-color: var(--ui-edge-light);
+  }
+  #sessionReportPanel.hidden { display: none; }
+  #sessionReportPanel h3 { font-family: 'VT323', monospace; font-size: 18px; margin-bottom: 8px; letter-spacing: 1px; color: #f4d94e; }
+  #sessionReportPanel table { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+  #sessionReportPanel th, #sessionReportPanel td { text-align: left; padding: 3px 6px; font-size: 12px; }
+  #sessionReportPanel th { color: rgba(255,255,255,0.55); font-weight: normal; border-bottom: 1px solid rgba(255,255,255,0.15); }
+  #sessionReportPanel td:nth-child(n+2), #sessionReportPanel th:nth-child(n+2) { text-align: center; }
