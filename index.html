@@ -5473,9 +5473,26 @@ function tickFrame(dt) {
     else playerLight.color.setHex(0xffb45a);
   }
 
-  for (let i = mobs.length - 1; i >= 0; i--) updateMob(mobs[i], dt);
-  if (MULTIPLAYER) updateNetMobs(dt);
-  spawnTimer -= dt;
+  // survival regen/starvation + hurt flash fade
+  if (gameMode === 'survival' && !dead && hunger >= 18 && health < MAX_HP && clock - lastHurt > 5) {
+    regenTimer -= dt;
+    if (regenTimer <= 0) { regenTimer = 2; health = Math.min(MAX_HP, health + 1); updateHearts(); }
+  }
+  if (gameMode === 'survival' && !dead && hunger <= 0) {
+    starveTick -= dt;
+    if (starveTick <= 0) { starveTick = 3.5; damagePlayer(1); }
+  } else starveTick = 0;
+  if (hurtFlash > 0) { hurtFlash -= dt * 1.5; hurtEl.style.opacity = Math.max(0, hurtFlash); }
+}
+
+// Runs exactly once per rendered frame (not per fixed-sim slice): mob AI, particles,
+// projectiles, weather, and all HUD/network work integrate on the real frame delta.
+function updateRenderFrame(frameDt) {
+  fps += ((1 / Math.max(frameDt, 0.0001)) - fps) * 0.1;
+
+  for (let i = mobs.length - 1; i >= 0; i--) updateMob(mobs[i], frameDt);
+  if (MULTIPLAYER) updateNetMobs(frameDt);
+  spawnTimer -= frameDt;
   if (!MULTIPLAYER && spawnTimer <= 0) {
     spawnTimer = 4;
     const pp = controls.getObject().position;
@@ -5490,33 +5507,19 @@ function tickFrame(dt) {
     }
   }
 
-  // survival regen/starvation + hurt flash fade
-  if (gameMode === 'survival' && !dead && hunger >= 18 && health < MAX_HP && clock - lastHurt > 5) {
-    regenTimer -= dt;
-    if (regenTimer <= 0) { regenTimer = 2; health = Math.min(MAX_HP, health + 1); updateHearts(); }
-  }
-  if (gameMode === 'survival' && !dead && hunger <= 0) {
-    starveTick -= dt;
-    if (starveTick <= 0) { starveTick = 3.5; damagePlayer(1); }
-  } else starveTick = 0;
-  if (hurtFlash > 0) { hurtFlash -= dt * 1.5; hurtEl.style.opacity = Math.max(0, hurtFlash); }
+  updateParticles(frameDt);
+  updateDrops(frameDt);
+  updateArrows(frameDt);
+  updateBullets(frameDt);
+  updateFireballs(frameDt);
+  updateNetFireballs(frameDt);
+  updateBossTelegraphs(frameDt);
+  updateLeftAction(frameDt);
+  updateAutoToggles(frameDt);
+  updateWeather(frameDt);
+  updateShootingStars(frameDt);
+  updateFurnace(frameDt);
 
-  updateParticles(dt);
-  updateDrops(dt);
-  updateArrows(dt);
-  updateBullets(dt);
-  updateFireballs(dt);
-  updateNetFireballs(dt);
-  updateBossTelegraphs(dt);
-  updateLeftAction(dt);
-  updateAutoToggles(dt);
-  updateWeather(dt);
-  updateShootingStars(dt);
-  updateFurnace(dt);
-}
-
-function updateRenderFrame(frameDt) {
-  fps += ((1 / Math.max(frameDt, 0.0001)) - fps) * 0.1;
   updateBossBar();
   updateViewmodel(frameDt);
   syncMultiplayer(frameDt);
