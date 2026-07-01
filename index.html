@@ -13,6 +13,7 @@
 <div id="crosshair"></div>
 <div id="mineBar"><i></i></div>
 <div id="hud"></div>
+<div id="armor"></div>
 <div id="hearts"></div>
 <div id="hunger"></div>
 <div id="info"></div>
@@ -84,6 +85,7 @@
           <div class="sep">➜</div>
           <div id="craftOut" class="grid"></div>
         </div>
+        <div id="invArmor" class="grid invSection"></div>
         <div id="invBackpack" class="grid invSection"></div>
         <div id="invHotbar" class="grid invSection hot"></div>
         <div class="hint">Click a stack to pick it up, right-click to split · click a recipe to load its ingredients · E / Esc to close</div>
@@ -409,6 +411,24 @@ for (const [kind, mat] of Object.entries(TOOL_KINDS)) {
   }
 }
 
+// ---- armor: 4 slots (helmet/chestplate/leggings/boots), iron + diamond tiers ----
+const ARMOR_SLOTS = ['helmet', 'chestplate', 'leggings', 'boots'];
+const ARMOR_POINTS = { helmet: 2, chestplate: 6, leggings: 5, boots: 2 };
+const ARMOR_TIER_BONUS = { iron: 0, diamond: 1 };   // diamond gives +1 point per piece over iron
+const ARMOR = {};
+for (const [tier, tt] of Object.entries(TIERS)) {
+  if (!(tier in ARMOR_TIER_BONUS)) continue;
+  for (const slot of ARMOR_SLOTS) {
+    const label = slot.charAt(0).toUpperCase() + slot.slice(1);
+    const tlabel = tier.charAt(0).toUpperCase() + tier.slice(1);
+    ARMOR[`${tier}_${slot}`] = {
+      name: `${tlabel} ${label}`, color: tt.color,
+      armorSlot: slot, points: ARMOR_POINTS[slot] + ARMOR_TIER_BONUS[tier],
+    };
+  }
+}
+const isArmor = (id) => id in ARMOR;
+
 // ---- raw materials & crafted items (non-block, non-tool) ----
 const ITEMS = {
   stick:      { name: 'Stick',     color: 0x9a6f3a },
@@ -419,6 +439,9 @@ const ITEMS = {
   gold_ingot: { name: 'Gold',      color: 0xf2d24a },
   diamond:    { name: 'Diamond',   color: 0x4fe6e6 },
   string:     { name: 'String',    color: 0xeeeeee },
+  leather:    { name: 'Leather',   color: 0xa9713f },
+  wool:       { name: 'Wool',      color: 0xf0ece2 },
+  feather:    { name: 'Feather',   color: 0xe8e4d8 },
 };
 
 const FOODS = {
@@ -427,6 +450,8 @@ const FOODS = {
   cooked_meat:  { name: 'Steak',   color: 0x9c5236, hunger: 8, heal: 3 },
   raw_meat:     { name: 'Raw Meat',color: 0xcf6f74, hunger: 3, heal: 0 },
   apple:        { name: 'Apple',   color: 0xd83b34, hunger: 4, heal: 1 },
+  raw_beef:     { name: 'Raw Beef',    color: 0xc2585f, hunger: 3, heal: 0 },
+  raw_chicken:  { name: 'Raw Chicken', color: 0xe0c9a0, hunger: 2, heal: 0 },
 };
 
 // ---- spawn eggs (creative only) — built after mob kind arrays are defined below ----
@@ -470,11 +495,11 @@ const PASSABLE = new Set(['water', 'torch', 'sunflower', 'rose', 'bluebell', 'ta
 const isSolid  = (t)  => t != null && isBlock(t) && !PASSABLE.has(t) && !WALKABLE.has(t);
 const isFood      = (id) => id in FOODS;
 const isSpawnEgg  = (id) => id in SPAWN_EGGS;
-const itemDef     = (id) => BLOCKS[id] || TOOLS[id] || FOODS[id] || ITEMS[id] || SPAWN_EGGS[id];
+const itemDef     = (id) => BLOCKS[id] || TOOLS[id] || FOODS[id] || ITEMS[id] || SPAWN_EGGS[id] || ARMOR[id];
 const swatch      = (id) => '#' + itemDef(id).color.toString(16).padStart(6, '0');
 const itemName = (id) => itemDef(id).name;
-// max stack: tools & weapons don't stack
-const maxStack = (id) => (id && (isTool(id) || (TOOLS[id] && TOOLS[id].weapon)) || id === 'sword') ? 1 : 64;
+// max stack: tools, weapons & armor don't stack
+const maxStack = (id) => (id && (isTool(id) || (TOOLS[id] && TOOLS[id].weapon)) || id === 'sword' || isArmor(id)) ? 1 : 64;
 // seconds to break a block with the held item (Infinity if it can't drop)
 function breakTime(blockType, heldId) {
   const m = blockMine(blockType);
@@ -1760,6 +1785,14 @@ function updateGravityFrame(dt) {
 const RADIUS = 0.3, PLAYER_H = 1.7;
 const GRAVITY = 28, WALK = 6, SPRINT = 8.6, SWIM = 3.6, FLY = 13, JUMP = 9;
 const MAX_HP = 20, MAX_HUNGER = 20;
+// ---- armor: 4 equip slots, one per ARMOR_SLOTS entry ----
+const armorSlots = ARMOR_SLOTS.map(() => ({ id: null, n: 0 }));
+const armorRef = (i) => ({
+  source: 'armor',
+  get: () => armorSlots[i],
+  set: (id, n) => { armorSlots[i] = (id && n > 0) ? { id, n } : { id: null, n: 0 }; markSaveDirty(); updateArmorBar(); },
+});
+const armorAccept = (i) => (id) => ARMOR[id] && ARMOR[id].armorSlot === ARMOR_SLOTS[i];
 const SPAWN = new THREE.Vector3(0.5, surfaceY(0, 0) + PLAYER_H, 0.5);
 let respawnPoint = SPAWN.clone();   // moved when sleeping in a bed
 controls.getObject().position.copy(SPAWN);
@@ -1782,6 +1815,7 @@ const hurtEl = document.getElementById('hurt');
 const promptEl = document.getElementById('prompt');
 const heartsEl = document.getElementById('hearts');
 const hungerEl = document.getElementById('hunger');
+const armorEl = document.getElementById('armor');
 const deathEl = document.getElementById('death');
 const joinEl = document.getElementById('join');
 const joinForm = document.getElementById('joinBox');
@@ -1929,10 +1963,10 @@ function setMode(m) {
   if (m === 'survival') {
     flying = false; health = MAX_HP; hunger = MAX_HUNGER;
     hungerTick = 0; starveTick = 0; regenTimer = 0;
-    heartsEl.style.display = 'block'; hungerEl.style.display = 'block';
-    updateHearts(); updateHunger();
+    heartsEl.style.display = 'block'; hungerEl.style.display = 'block'; armorEl.style.display = 'block';
+    updateHearts(); updateHunger(); updateArmorBar();
   }
-  else { heartsEl.style.display = 'none'; hungerEl.style.display = 'none'; hurtFlash = 0; hurtEl.style.opacity = 0; }
+  else { heartsEl.style.display = 'none'; hungerEl.style.display = 'none'; armorEl.style.display = 'none'; hurtFlash = 0; hurtEl.style.opacity = 0; }
 }
 setMode(gameMode);   // apply the default (survival) HUD state at startup
 
@@ -2025,6 +2059,16 @@ function updateHunger() {
   }
   hungerEl.innerHTML = s;
 }
+function updateArmorBar() {
+  const points = Math.min(20, equippedArmorPoints());
+  let s = '';
+  for (let i = 0; i < 10; i++) {
+    const v = points - i * 2;
+    const col = v >= 2 ? '#b9c4cc' : v === 1 ? '#dfe6ea' : '#555';
+    s += `<span style="color:${col}">⛨</span>`;
+  }
+  armorEl.innerHTML = s;
+}
 function waterAtPlayer(pos) {
   const eye = world.get(key(Math.floor(pos.x), Math.floor(pos.y), Math.floor(pos.z)));
   const feet = world.get(key(
@@ -2066,9 +2110,16 @@ function eatFood(itemId) {
   }
   return true;
 }
+function equippedArmorPoints() {
+  let total = 0;
+  for (const s of armorSlots) if (s.id && ARMOR[s.id]) total += ARMOR[s.id].points;
+  return total;
+}
 function damagePlayer(dmg) {
   if (gameMode !== 'survival' || dead) return;
-  health -= dmg; lastHurt = clock; hurtFlash = 0.55; updateHearts();
+  const points = Math.min(20, equippedArmorPoints());   // flat 4% reduction per armor point, capped at 80%
+  const mitigated = Math.max(0, Math.round(dmg * (1 - points * 0.04)));
+  health -= mitigated; lastHurt = clock; hurtFlash = 0.55; updateHearts();
   markSaveDirty();
   if (health <= 0) die();
 }
@@ -3327,6 +3378,9 @@ function mobDrop(kind) {
   const r = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
   if (kind.name === 'Spider') out.push(['string', r(1, 2)]);
   else if (kind.name === 'Zombie') { if (Math.random() < 0.4) out.push(['raw_meat', 1]); }
+  else if (kind.name === 'Cow') { const l = r(0, 2); if (l > 0) out.push(['leather', l]); out.push(['raw_beef', r(1, 3)]); }
+  else if (kind.name === 'Sheep') out.push(['wool', r(1, 3)]);
+  else if (kind.name === 'Chicken') { const f = r(0, 2); if (f > 0) out.push(['feather', f]); out.push(['raw_chicken', 1]); }
   else if (!kind.hostile && !kind.fly) out.push(['raw_meat', r(1, 2)]);   // passive livestock
   return out;
 }
@@ -4057,6 +4111,12 @@ for (const [m, tier] of Object.entries(TOOLMAT)) {
   RECIPES.push({ out: [`${tier}_axe`, 1], shape: ['mm', 'sm', 's '], key: { m, s: 'stick' } });
   RECIPES.push({ out: [`${tier}_shovel`, 1], shape: ['m', 's', 's'], key: { m, s: 'stick' } });
   RECIPES.push({ out: [`${tier}_sword`, 1], shape: ['m', 'm', 's'], key: { m, s: 'stick' } });
+  if (tier === 'iron' || tier === 'diamond') {
+    RECIPES.push({ out: [`${tier}_helmet`, 1], shape: ['mmm', 'm m'], key: { m } });
+    RECIPES.push({ out: [`${tier}_chestplate`, 1], shape: ['m m', 'mmm', 'mmm'], key: { m } });
+    RECIPES.push({ out: [`${tier}_leggings`, 1], shape: ['mmm', 'm m', 'm m'], key: { m } });
+    RECIPES.push({ out: [`${tier}_boots`, 1], shape: ['m m', 'm m'], key: { m } });
+  }
 }
 
 function craftBBox(g) {
@@ -4299,8 +4359,8 @@ function quickMoveRef(ref, opts = {}) {
   ref.set(remain > 0 ? s.id : null, remain);
   renderOpen();
 }
-// generic click: ref = { get(), set(id,n) }
-function slotClick(ref, isOutput, onTake) {
+// generic click: ref = { get(), set(id,n) }. accept(id), if given, restricts what can be placed here.
+function slotClick(ref, isOutput, onTake, accept) {
   const s = ref.get();
   if (isOutput) {
     if (!s.id) return;
@@ -4310,6 +4370,8 @@ function slotClick(ref, isOutput, onTake) {
   }
   if (!cursor.id) {
     if (s.id) { cursor.id = s.id; cursor.n = s.n; ref.set(null, 0); }
+  } else if (accept && !accept(cursor.id)) {
+    return;   // wrong item type for this slot: leave cursor and slot untouched
   } else if (!s.id) {
     ref.set(cursor.id, cursor.n); cursor.id = null; cursor.n = 0;
   } else if (s.id === cursor.id && Number.isFinite(s.n)) {
@@ -4326,16 +4388,17 @@ function makeSlot(container, ref, opts = {}) {
   el.addEventListener('mousedown', (e) => {
     e.preventDefault();
     if (e.shiftKey) { quickMoveRef(ref, opts); return; }
-    if (e.button === 2 && !opts.out) rightSlotClick(ref);
-    else slotClick(ref, opts.out, opts.onTake);
+    if (e.button === 2 && !opts.out) rightSlotClick(ref, opts.accept);
+    else slotClick(ref, opts.out, opts.onTake, opts.accept);
   });
   el.addEventListener('contextmenu', (e) => e.preventDefault());
   container.appendChild(el);
   return { el, ref };
 }
-function rightSlotClick(ref) {   // right-click: drop one / pick up half
+function rightSlotClick(ref, accept) {   // right-click: drop one / pick up half
   const s = ref.get();
   if (cursor.id) {
+    if (accept && !accept(cursor.id)) return;
     if (!s.id) { ref.set(cursor.id, 1); cursor.n--; }
     else if (s.id === cursor.id && Number.isFinite(s.n) && s.n < maxStack(s.id)) { ref.set(s.id, s.n + 1); cursor.n--; }
     if (cursor.n <= 0) { cursor.id = null; cursor.n = 0; }
@@ -4408,7 +4471,10 @@ function buildInvDOM() {
   document.getElementById('invBackpack').innerHTML = '';
   document.getElementById('invHotbar').innerHTML = '';
   const pc = buildPlayerGrids(document.getElementById('invBackpack'), document.getElementById('invHotbar'));
-  invCells = [...cc, oc, ...pc];
+  const ae = document.getElementById('invArmor');
+  ae.innerHTML = ''; ae.style.gridTemplateColumns = 'repeat(4, 46px)';
+  const ac = ARMOR_SLOTS.map((_, i) => makeSlot(ae, armorRef(i), { accept: armorAccept(i) }));
+  invCells = [...cc, oc, ...pc, ...ac];
 }
 function buildFurnaceDOM() {
   const fi = document.getElementById('furInput'), ff = document.getElementById('furFuel'), fo = document.getElementById('furOut');
@@ -4505,6 +4571,7 @@ function saveGame(force = false) {
     counts: counts.map(c => Number.isFinite(c) ? c : null),   // Infinity → null for JSON
     store: [...store],
     storeCounts: [...storeCounts],
+    armor: armorSlots.map(s => ({ id: s.id, n: s.n })),
     furnace: { input: furInput, fuel: furFuel, out: furOut },
     chests: [...chestStore.entries()],
     respawn: { x: respawnPoint.x, y: respawnPoint.y, z: respawnPoint.z },
@@ -4538,6 +4605,7 @@ setInterval(() => scheduleSaveGame(false), 10000);
   else hotbar.forEach((id, i) => { counts[i] = id == null ? 0 : (isBlock(id) ? 64 : Infinity); });   // legacy saves
   if (data.store) data.store.forEach((id, i) => { store[i] = id; });
   if (data.storeCounts) data.storeCounts.forEach((c, i) => { storeCounts[i] = c || 0; });
+  if (data.armor) data.armor.forEach((s, i) => { if (armorSlots[i]) armorSlots[i] = { id: s.id || null, n: s.id ? s.n : 0 }; });
   if (data.furnace) {
     const f = data.furnace;
     if (f.input) { furInput.id = f.input.id; furInput.n = f.input.n; }
@@ -4551,8 +4619,8 @@ setInterval(() => scheduleSaveGame(false), 10000);
   if (data.gameMode === 'creative') {
     setMode('creative');
   } else {
-    heartsEl.style.display = 'block'; hungerEl.style.display = 'block';
-    updateHearts(); updateHunger();
+    heartsEl.style.display = 'block'; hungerEl.style.display = 'block'; armorEl.style.display = 'block';
+    updateHearts(); updateHunger(); updateArmorBar();
   }
   hotbar.forEach((_, i) => paintSlot(i));
   if (typeof data.currentSlot === 'number') selectSlot(data.currentSlot);
@@ -4586,9 +4654,10 @@ const CREATIVE_GROUPS = [
   { id: 'tools', label: 'Tools', test: (id) => isTool(id) },
   { id: 'materials', label: 'Materials', test: (id) => id in ITEMS },
   { id: 'food', label: 'Food', test: (id) => isFood(id) },
+  { id: 'armor', label: 'Armor', test: (id) => isArmor(id) },
   { id: 'mobs', label: 'Mobs', test: (id) => isSpawnEgg(id) },
 ];
-const CREATIVE_ITEMS = [...Object.keys(TOOLS), ...Object.keys(ITEMS), ...Object.keys(FOODS), ...TYPES, ...Object.keys(SPAWN_EGGS)]
+const CREATIVE_ITEMS = [...Object.keys(TOOLS), ...Object.keys(ITEMS), ...Object.keys(FOODS), ...Object.keys(ARMOR), ...TYPES, ...Object.keys(SPAWN_EGGS)]
   .filter((id) => !OPEN_TYPES.has(id));
 function giveCreativeItem(id) {
   hotbar[currentSlot] = id;

@@ -99,6 +99,10 @@
   }
   #mineBar > i { display: block; height: 100%; width: 0%; background: linear-gradient(90deg, #f5f4cf, #d2c16d); }
 
+  #armor {
+    position: fixed; bottom: 118px; left: 50%; transform: translateX(-50%); z-index: 10;
+    font-size: 18px; letter-spacing: 3px; display: none; text-shadow: 1px 1px 2px #000;
+  }
   #hearts {
     position: fixed; bottom: 72px; left: 50%; transform: translateX(-50%); z-index: 10;
     font-size: 22px; letter-spacing: 3px; display: none; text-shadow: 1px 1px 2px #000;
@@ -439,6 +443,7 @@
     #hud { transform: translateX(-50%) scale(0.88); transform-origin: bottom center; }
     #hearts { bottom: 66px; font-size: 20px; }
     #hunger { bottom: 88px; font-size: 17px; }
+    #armor { bottom: 108px; font-size: 16px; }
     #prompt { bottom: 104px; max-width: calc(100vw - 24px); text-align: center; }
     #info { font-size: 11px; max-width: calc(100vw - 24px); white-space: pre-wrap; }
     .menuTop { align-items: flex-start; flex-direction: column; gap: 8px; }
