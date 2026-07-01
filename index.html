@@ -127,6 +127,9 @@
 <div id="questBar" class="hidden"><div id="questBarName">Quest</div><div id="questBarText">0 / 0</div><div id="questBarOuter"><div id="questBarFill" style="width:0%"></div></div></div>
 <div id="toast"><div class="toast-title" id="toastTitle"></div><div class="toast-sub" id="toastSub"></div></div>
 
+<div id="frozenBanner" class="hidden">❄ Frozen by teacher</div>
+<div id="announceBanner" class="hidden"></div>
+
 <div id="join" class="hidden">
   <form id="joinBox">
     <h2>JOIN CLASS WORLD</h2>
@@ -142,6 +145,17 @@
   <div class="actions">
     <button id="teleportAll" type="button">Teleport</button>
     <button id="resetWorld" type="button">Reset</button>
+  </div>
+  <div class="actions">
+    <button id="freezeAllBtn" type="button">❄ Freeze All</button>
+    <button id="unfreezeAllBtn" type="button">Unfreeze All</button>
+  </div>
+  <div class="questSection">
+    <div class="questSectionHead">ANNOUNCE</div>
+    <div class="questRow">
+      <input id="announceText" type="text" maxlength="200" placeholder="Message for the class..." />
+    </div>
+    <button id="announceBtn" type="button">📢 Send Announcement</button>
   </div>
   <div class="questSection">
     <div class="questSectionHead">CLASS QUEST</div>
@@ -190,6 +204,8 @@ const TAU = Math.PI * 2;
 const urlParams = new URLSearchParams(location.search);
 const MULTIPLAYER = location.protocol.startsWith('http') && !urlParams.has('single') && !location.search.includes('norender');
 let IS_TEACHER = MULTIPLAYER && urlParams.has('teacher');   // server may demote on join if a teacher already exists
+let frozen = false;   // teacher:freeze disables movement input for this client
+let isMuted = false;  // teacher:mute suppresses this client's outgoing chat
 const LOCAL_COLOR = '#' + Math.floor(0x5577aa + Math.random() * 0x777755).toString(16).slice(0, 6).padStart(6, '0');
 const PERF = urlParams.has('perf');
 const SHADOW_QUALITY = urlParams.get('shadows') === 'low' ? 'low' : 'normal';
@@ -1789,6 +1805,15 @@ const studentNameInput = document.getElementById('studentName');
 const joinMsg = document.getElementById('joinMsg');
 const teacherPanel = document.getElementById('teacherPanel');
 const studentList = document.getElementById('studentList');
+const frozenBannerEl = document.getElementById('frozenBanner');
+const announceBannerEl = document.getElementById('announceBanner');
+let announceTimer = null;
+function showAnnounce(text) {
+  announceBannerEl.textContent = text;
+  announceBannerEl.classList.remove('hidden');
+  if (announceTimer) clearTimeout(announceTimer);
+  announceTimer = setTimeout(() => announceBannerEl.classList.add('hidden'), 6000);
+}
 const teleportAllBtn = document.getElementById('teleportAll');
 const resetWorldBtn = document.getElementById('resetWorld');
 const mpStatus = document.getElementById('mpStatus');
@@ -4718,6 +4743,8 @@ function upsertRemotePlayer(player) {
     remotePlayers.set(player.id, entry);
   }
   entry.player = { ...entry.player, ...player };
+  if (player.frozen !== undefined) entry.frozen = !!player.frozen;
+  if (player.muted !== undefined) entry.muted = !!player.muted;
   if (player.transform) {
     entry.target.set(player.transform.x, player.transform.y - PLAYER_H, player.transform.z);
     entry.group.position.copy(entry.target);
@@ -4758,7 +4785,35 @@ function paintStudentList() {
       sendRoom({ type: 'teacher:setMode', target: e.player.id, mode: e.mode });
       paintStudentList();
     });
-    row.append(name, btn);
+    const freezeBtn = document.createElement('button');
+    const isFrozen = !!e.frozen;
+    freezeBtn.textContent = isFrozen ? '▶ Unfreeze' : '❄ Freeze';
+    freezeBtn.addEventListener('click', () => {
+      e.frozen = !isFrozen;
+      sendRoom({ type: 'teacher:freeze', target: e.player.id, frozen: e.frozen });
+      paintStudentList();
+    });
+    const muteBtn = document.createElement('button');
+    const isMuted = !!e.muted;
+    muteBtn.textContent = isMuted ? '🔊 Unmute' : '🔇 Mute';
+    muteBtn.addEventListener('click', () => {
+      e.muted = !isMuted;
+      sendRoom({ type: 'teacher:mute', target: e.player.id, muted: e.muted });
+      paintStudentList();
+    });
+    const spawnBtn = document.createElement('button');
+    spawnBtn.textContent = '⌂ Spawn';
+    spawnBtn.addEventListener('click', () => {
+      sendRoom({ type: 'teacher:sendToSpawn', target: e.player.id });
+    });
+    const kickBtn = document.createElement('button');
+    kickBtn.textContent = '✕ Kick';
+    kickBtn.addEventListener('click', () => {
+      if (confirm(`Kick ${e.player.name || 'this student'} from the class world?`)) {
+        sendRoom({ type: 'teacher:kick', target: e.player.id });
+      }
+    });
+    row.append(name, btn, freezeBtn, muteBtn, spawnBtn, kickBtn);
     studentList.append(row);
   }
 }
@@ -4848,6 +4903,22 @@ const roomMessageHandlers = {
   },
   'world:reset'() { resetSharedWorld(); },
   'teacher:teleport'(message) { if (message.transform) teleportTo(message.transform); },
+  'teacher:gotoSpawn'() { teleportTo({ x: SPAWN.x, y: SPAWN.y, z: SPAWN.z, yaw: 0, pitch: 0 }); },
+  'teacher:freeze'(message) {
+    frozen = !!message.frozen;
+    frozenBannerEl.classList.toggle('hidden', !frozen);
+    if (!frozen) { velocity.set(0, 0, 0); vUp = 0; }
+  },
+  'teacher:mute'(message) {
+    isMuted = !!message.muted;
+    showToast(isMuted ? 'Muted' : 'Unmuted', isMuted ? 'The teacher has muted your chat' : 'The teacher has unmuted your chat', 3);
+  },
+  'chat:blocked'() { addChatLine(null, 'Your message was blocked — you are muted by the teacher.'); },
+  'teacher:announce'(message) { showAnnounce(message.text || ''); },
+  'teacher:kicked'(message) {
+    setMpStatus(message.reason || 'Removed by the teacher');
+    showToast('Removed', message.reason || 'You were removed by the teacher', 4);
+  },
   'mode:set'(message) { setMode(message.mode === 'creative' ? 'creative' : 'survival'); },
   'quest:update'(message) { if (message.quest) updateQuestDisplay(message.quest); },
   'quest:done'(message) {
@@ -5107,6 +5178,7 @@ function submitChat() {
   const text = chatInputEl.value.trim();
   closeChat();
   if (!text) return;
+  if (isMuted) { addChatLine(null, 'You are muted by the teacher — message not sent.'); return; }
   addChatLine(myName, text, LOCAL_COLOR);
   sendRoom({ type: 'chat', text });
 }
@@ -5189,6 +5261,23 @@ if (MULTIPLAYER) {
   });
   document.getElementById('spawnColossusBtn').addEventListener('click', () => {
     if (confirm('Summon the Magma Colossus? It telegraphs its attacks — students should strike it only when it rests. Make sure the class is in the arena first.')) sendRoom({ type: 'teacher:spawnArenaColossus' });
+  });
+  document.getElementById('freezeAllBtn').addEventListener('click', () => {
+    for (const e of remotePlayers.values()) e.frozen = true;
+    paintStudentList();
+    sendRoom({ type: 'teacher:freeze', target: 'all', frozen: true });
+  });
+  document.getElementById('unfreezeAllBtn').addEventListener('click', () => {
+    for (const e of remotePlayers.values()) e.frozen = false;
+    paintStudentList();
+    sendRoom({ type: 'teacher:freeze', target: 'all', frozen: false });
+  });
+  document.getElementById('announceBtn').addEventListener('click', () => {
+    const el = document.getElementById('announceText');
+    const text = el.value.trim();
+    if (!text) return;
+    sendRoom({ type: 'teacher:announce', text });
+    el.value = '';
   });
 }
 
@@ -5395,10 +5484,12 @@ function tickFrame(dt) {
     fwd.normalize();
     const right = _moveRight.crossVectors(fwd, gUp).normalize();
     const move = _moveVec.set(0, 0, 0);
-    if (keys['KeyW']) move.add(fwd);
-    if (keys['KeyS']) move.sub(fwd);
-    if (keys['KeyD']) move.add(right);
-    if (keys['KeyA']) move.sub(right);
+    if (!frozen) {
+      if (keys['KeyW']) move.add(fwd);
+      if (keys['KeyS']) move.sub(fwd);
+      if (keys['KeyD']) move.add(right);
+      if (keys['KeyA']) move.sub(right);
+    }
     const wantsMove = move.lengthSq() > 0;
     const inWater = waterAtPlayer(pos);
     const sprinting = !flying && !inWater && gameMode === 'survival' && hunger > 6 &&
@@ -5418,19 +5509,21 @@ function tickFrame(dt) {
 
     if (flying) {
       let vy = 0;
-      if (keys['Space']) vy += 1;
-      if (keys['ShiftLeft'] || keys['ShiftRight']) vy -= 1;
+      if (!frozen) {
+        if (keys['Space']) vy += 1;
+        if (keys['ShiftLeft'] || keys['ShiftRight']) vy -= 1;
+      }
       const d = vy * FLY * dt;
       moveAxis(upAxis, gUp[upAxis] * d, pos);
     } else {
       if (inWater) {
-        if (keys['Space']) vUp = Math.max(vUp, 3.4);
+        if (!frozen && keys['Space']) vUp = Math.max(vUp, 3.4);
         vUp -= gNow * 0.23 * dt;
         vUp = Math.max(vUp, -3.0);
         vUp *= Math.pow(0.55, dt);
       } else {
         if (grounded(pos)) coyoteT = 0.12;
-        if (jumpBufferT > 0 && coyoteT > 0) { vUp = JUMP; jumpBufferT = 0; coyoteT = 0; }
+        if (!frozen && jumpBufferT > 0 && coyoteT > 0) { vUp = JUMP; jumpBufferT = 0; coyoteT = 0; }
         vUp -= gNow * dt;
       }
       const d = vUp * dt;

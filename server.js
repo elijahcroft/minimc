@@ -395,6 +395,7 @@ const messageHandlers = {
       transform: normalizeTransform(message.transform),
       alive: true,
       kills: 0, blocksPlaced: 0, questContrib: 0,
+      frozen: false, muted: false,
     };
     players.set(ws.playerId, player);
     sendJson(ws, {
@@ -426,6 +427,7 @@ const messageHandlers = {
   },
 
   chat(ws, message, player) {
+    if (player.muted) { sendJson(ws, { type: 'chat:blocked' }); return; }
     const text = String(message.text || '').slice(0, 160);
     if (!text.trim()) return;
     broadcast({ type: 'chat', id: ws.playerId, name: player.name, color: player.color, text }, ws);
@@ -593,6 +595,54 @@ const messageHandlers = {
     const mode = message.mode === 'creative' ? 'creative' : 'survival';
     for (const client of wss.clients) {
       if (client.playerId === targetId) sendJson(client, { type: 'mode:set', mode });
+    }
+  },
+
+  'teacher:freeze'(ws, message) {
+    if (!ws.isTeacher) return;
+    const frozen = !!message.frozen;
+    if (message.target === 'all') {
+      for (const p of players.values()) { if (p.teacher) continue; p.frozen = frozen; }
+      broadcast({ type: 'teacher:freeze', target: 'all', frozen }, ws);
+      return;
+    }
+    const target = players.get(String(message.target));
+    if (!target || target.teacher) return;
+    target.frozen = frozen;
+    sendToId(target.id, { type: 'teacher:freeze', target: target.id, frozen });
+  },
+
+  'teacher:mute'(ws, message) {
+    if (!ws.isTeacher) return;
+    const target = players.get(String(message.target));
+    if (!target || target.teacher) return;
+    target.muted = !!message.muted;
+    sendToId(target.id, { type: 'teacher:mute', muted: target.muted });
+  },
+
+  'teacher:announce'(ws, message) {
+    if (!ws.isTeacher) return;
+    const text = String(message.text || '').slice(0, 200);
+    if (!text.trim()) return;
+    broadcast({ type: 'teacher:announce', text });
+  },
+
+  'teacher:kick'(ws, message) {
+    if (!ws.isTeacher) return;
+    const targetId = String(message.target);
+    for (const client of wss.clients) {
+      if (client.playerId === targetId) {
+        sendJson(client, { type: 'teacher:kicked', reason: 'Removed by the teacher' });
+        client.close(4001, 'Kicked by teacher');
+      }
+    }
+  },
+
+  'teacher:sendToSpawn'(ws, message) {
+    if (!ws.isTeacher) return;
+    const targetId = String(message.target);
+    for (const client of wss.clients) {
+      if (client.playerId === targetId) sendJson(client, { type: 'teacher:gotoSpawn' });
     }
   },
 };
