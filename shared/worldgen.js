@@ -6,6 +6,20 @@
 
 export const SEA = 7;
 
+// Boss arena: a flat platform ringed by a wall, carved straight into the
+// heightmap (not block edits) so it's free, deterministic, and identical on
+// client + server with zero data sent on join. Far from spawn so students
+// never wander into it by accident.
+export const ARENA = { x: 3000, z: 0, radius: 14, wallRadius: 17, wallHeight: 6, floorY: 40 };
+
+export function arenaDist2(x, z) {
+  const dx = x - ARENA.x, dz = z - ARENA.z;
+  return dx * dx + dz * dz;
+}
+export function inArena(x, z) {
+  return arenaDist2(x, z) <= ARENA.wallRadius * ARENA.wallRadius;
+}
+
 export function rand(x, z) {
   const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453;
   return s - Math.floor(s);
@@ -61,6 +75,9 @@ export function isDesert(x, z) {
 }
 
 export function heightAt(x, z) {
+  const d2 = arenaDist2(x, z);
+  if (d2 <= ARENA.radius * ARENA.radius) return ARENA.floorY;
+  if (d2 <= ARENA.wallRadius * ARENA.wallRadius) return ARENA.floorY + ARENA.wallHeight;
   const n = smooth2(x / 22, z / 22) * 1.0 + smooth2(x / 9, z / 9) * 0.35;
   const amp = isDesert(x, z) ? 9 : 16; // deserts: lower, gentler rolling hills
   return Math.floor(6 + (n / 1.35) * amp);

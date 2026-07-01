@@ -1,3 +1,5 @@
+  @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
   :root {
     --ui-bg: rgba(14, 20, 18, 0.76);
     --ui-bg-strong: rgba(18, 24, 21, 0.94);
@@ -133,28 +135,102 @@
     align-items: center; justify-content: center; background: rgba(0,0,0,0.6); text-align: center;
   }
   #overlay, #menu { z-index: 20; }
-  #death { z-index: 25; background: rgba(60,0,0,0.6); }
-  #death h1 { font-size: 46px; color: #d33; letter-spacing: 3px; }
-  #death p { margin-top: 10px; opacity: 0.85; }
+  #death { z-index: 25; background: rgba(60,0,0,0.7); }
+  #death h1 {
+    font-family: 'VT323', monospace; font-size: 80px; color: #e03333; letter-spacing: 6px;
+    text-shadow: 0 0 40px rgba(200,0,0,0.6), 0 4px 0 rgba(0,0,0,0.5);
+    animation: deathPulse 1.5s ease-in-out infinite;
+  }
+  @keyframes deathPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.78; } }
+  #death p { margin-top: 12px; opacity: 0.7; font-size: 14px; letter-spacing: 1px; }
   #overlay { cursor: pointer; }
   #overlay h1 {
-    font-size: 34px; margin-bottom: 16px; letter-spacing: 3px;
-    text-shadow: 0 4px 0 rgba(0,0,0,0.35), 0 0 24px rgba(255,255,255,0.1);
+    font-family: 'VT323', monospace;
+    font-size: 72px; margin-bottom: 8px; letter-spacing: 6px;
+    text-shadow: 0 6px 0 rgba(0,0,0,0.45), 0 0 32px rgba(140,220,80,0.18), 0 0 60px rgba(80,160,40,0.1);
+    color: #f0f4d0;
   }
-  #overlay p {
-    font-size: 13px; line-height: 1.9; opacity: 0.92;
-    max-width: min(860px, calc(100vw - 36px));
-    padding: 18px 20px;
-    background: linear-gradient(180deg, rgba(43,51,44,0.94), rgba(23,28,24,0.98));
+  .clickHint {
+    font-size: 15px; color: var(--ui-accent); letter-spacing: 3px; margin-bottom: 18px;
+    animation: hintPulse 2.2s ease-in-out infinite;
+  }
+  @keyframes hintPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+  .controls {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 28px;
+    text-align: left;
+    padding: 18px 24px;
+    background: linear-gradient(180deg, rgba(43,51,44,0.95), rgba(23,28,24,0.98));
     border: 3px solid rgba(0,0,0,0.52);
     border-top-color: rgba(255,255,255,0.18);
     border-left-color: rgba(255,255,255,0.18);
     box-shadow: var(--ui-shadow);
+    max-width: min(720px, calc(100vw - 36px));
+    width: 100%;
   }
+  .ctrlGroup { display: flex; flex-direction: column; }
+  .ctrlHead {
+    font-family: 'VT323', monospace; font-size: 18px; letter-spacing: 2px;
+    color: var(--ui-accent); border-bottom: 1px solid rgba(255,255,255,0.13);
+    padding-bottom: 4px; margin-bottom: 6px;
+  }
+  .ctrlItem { font-size: 12px; margin: 2px 0; display: flex; align-items: center; gap: 7px; opacity: 0.88; }
+  kbd {
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.22);
+    border-bottom: 2px solid rgba(255,255,255,0.14);
+    padding: 1px 5px; font: 10px monospace; letter-spacing: 0;
+    white-space: nowrap; color: #d8e8d0; flex-shrink: 0;
+  }
+  .overlayFooter { margin-top: 12px; font-size: 11px; opacity: 0.45; letter-spacing: 0.5px; }
   .hidden { display: none !important; }
 
-  #menu h2 { font-size: 22px; margin-bottom: 14px; letter-spacing: 2px; }
-  #menuGrid { display: grid; grid-template-columns: repeat(8, 56px); gap: 8px; }
+  .creativePanel {
+    width: min(760px, calc(100vw - 28px));
+    max-height: min(720px, calc(100vh - 28px));
+    padding: 16px 18px 18px;
+    background: linear-gradient(180deg, rgba(54,62,55,0.98), rgba(22,27,24,0.99));
+    border: 3px solid rgba(0,0,0,0.52);
+    border-top-color: rgba(255,255,255,0.16);
+    border-left-color: rgba(255,255,255,0.16);
+    box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+  }
+  .menuTop {
+    display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-bottom: 10px;
+  }
+  #menu h2 { font-family: 'VT323', monospace; font-size: 28px; letter-spacing: 3px; white-space: nowrap; }
+  #creativeSearch, #recipeSearch {
+    height: 32px; min-width: 150px; padding: 0 9px;
+    background: rgba(9,12,10,0.76); color: #fff;
+    border: 2px solid rgba(0,0,0,0.45);
+    border-top-color: rgba(255,255,255,0.12);
+    border-left-color: rgba(255,255,255,0.12);
+    font: 12px monospace; outline: none;
+  }
+  #creativeSearch:focus, #recipeSearch:focus { border-color: rgba(241,244,207,0.7); }
+  .tabs {
+    display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 12px;
+  }
+  .tab {
+    min-height: 28px; padding: 0 10px;
+    border: 2px solid rgba(0,0,0,0.45);
+    border-top-color: rgba(255,255,255,0.12);
+    border-left-color: rgba(255,255,255,0.12);
+    background: rgba(26,31,27,0.88); color: rgba(255,255,255,0.78);
+    font: 11px monospace; cursor: pointer;
+  }
+  .tab.active {
+    color: #f1f4cf; background: rgba(91,101,76,0.92);
+    border-color: rgba(241,244,207,0.58);
+  }
+  #menuGrid {
+    display: grid; grid-template-columns: repeat(10, 56px); gap: 8px;
+    max-height: min(58vh, 470px); overflow-y: auto; overflow-x: hidden;
+    overscroll-behavior: contain;
+    scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.2) transparent;
+    padding: 2px 4px 2px 2px;
+  }
+  #menuGrid::-webkit-scrollbar { width: 6px; }
+  #menuGrid::-webkit-scrollbar-track { background: transparent; }
+  #menuGrid::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 3px; }
   .tile {
     width: 56px; height: 56px;
     border: 2px solid rgba(0,0,0,0.46);
@@ -187,9 +263,62 @@
     border-top-color: rgba(255,255,255,0.16);
     border-left-color: rgba(255,255,255,0.16);
     padding: 16px 18px; border-radius: 0; box-shadow: 0 8px 40px rgba(0,0,0,0.5);
+    max-width: calc(100vw - 24px);
+    max-height: calc(100vh - 24px);
+    overflow: auto;
   }
-  .panel h2 { font-size: 15px; margin-bottom: 12px; letter-spacing: 2px; }
+  .panel h2 { font-family: 'VT323', monospace; font-size: 22px; margin-bottom: 12px; letter-spacing: 3px; }
   .panel .hint { margin-top: 12px; font-size: 11px; opacity: 0.65; }
+  .invLayout { display: flex; align-items: flex-start; gap: 16px; }
+  .invMain { flex: 0 0 auto; }
+  .recipeBook {
+    width: 230px; flex: 0 0 230px;
+    padding: 10px;
+    background: rgba(16,20,17,0.58);
+    border: 2px solid rgba(0,0,0,0.42);
+    border-top-color: rgba(255,255,255,0.12);
+    border-left-color: rgba(255,255,255,0.12);
+  }
+  .bookHead { display: grid; gap: 8px; margin-bottom: 8px; }
+  .bookHead h3 {
+    font-family: 'VT323', monospace; font-size: 19px; letter-spacing: 2px; color: var(--ui-accent);
+  }
+  #recipeSearch { width: 100%; min-width: 0; height: 30px; }
+  #recipeList {
+    display: grid; gap: 6px; max-height: 336px; overflow-y: auto; padding-right: 3px;
+    scrollbar-width: thin; scrollbar-color: rgba(255,255,255,0.2) transparent;
+  }
+  #recipeList::-webkit-scrollbar { width: 6px; }
+  #recipeList::-webkit-scrollbar-track { background: transparent; }
+  #recipeList::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 3px; }
+  .recipeItem {
+    width: 100%; min-height: 48px; display: grid; grid-template-columns: 38px 1fr auto; gap: 8px;
+    align-items: center; padding: 5px 7px;
+    border: 2px solid rgba(0,0,0,0.44);
+    border-top-color: rgba(255,255,255,0.12);
+    border-left-color: rgba(255,255,255,0.12);
+    background: linear-gradient(180deg, rgba(38,45,39,0.96), rgba(18,21,18,0.98));
+    color: #fff; text-align: left; font: 11px monospace; cursor: pointer;
+  }
+  .recipeItem:hover { border-color: rgba(241,244,207,0.62); }
+  .recipeItem.locked {
+    cursor: default; opacity: 0.46; filter: grayscale(0.55);
+  }
+  .recipeIcon {
+    width: 34px; height: 34px; border: 2px solid rgba(255,255,255,0.08);
+    image-rendering: pixelated; background-repeat: no-repeat; background-position: center; background-size: cover;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08), inset 0 -8px 10px rgba(0,0,0,0.18);
+  }
+  .recipeName { display: block; font-size: 12px; line-height: 1.1; }
+  .recipeNeed { display: block; margin-top: 3px; color: rgba(255,255,255,0.6); font-size: 9px; line-height: 1.15; }
+  .recipeCount {
+    min-width: 22px; text-align: right; color: var(--ui-accent); font-size: 13px; font-weight: bold;
+  }
+  .emptyRecipe {
+    padding: 10px; color: rgba(255,255,255,0.55); font-size: 11px; line-height: 1.35;
+    border: 2px solid rgba(0,0,0,0.32);
+    background: rgba(0,0,0,0.18);
+  }
   .grid { display: grid; gap: 4px; }
   .islot {
     width: 46px; height: 46px;
@@ -232,7 +361,7 @@
     width: min(360px, calc(100vw - 28px)); background: rgba(18,22,28,0.92);
     border: 2px solid rgba(255,255,255,0.22); padding: 18px; border-radius: 6px;
   }
-  #joinBox h2 { font-size: 20px; margin-bottom: 12px; letter-spacing: 1px; }
+  #joinBox h2 { font-family: 'VT323', monospace; font-size: 28px; margin-bottom: 12px; letter-spacing: 2px; }
   #joinBox input {
     width: 100%; height: 38px; margin: 6px 0 12px; padding: 0 10px;
     border: 2px solid rgba(255,255,255,0.3); background: #10151c; color: #fff;
@@ -252,7 +381,7 @@
     border-top-color: var(--ui-edge-light);
     border-left-color: var(--ui-edge-light);
   }
-  #teacherPanel h3 { font-size: 13px; margin-bottom: 8px; }
+  #teacherPanel h3 { font-family: 'VT323', monospace; font-size: 18px; margin-bottom: 8px; letter-spacing: 1px; }
   #studentList { margin: 8px 0; line-height: 1.5; max-height: 160px; overflow: auto; }
   .studentRow { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin: 3px 0; }
   .studentRow button { flex: 0 0 auto; padding: 3px 7px; }
@@ -292,20 +421,31 @@
   #locator .ldist { opacity: 0.8; font-size: 11px; }
 
   @media (max-width: 900px) {
-    #overlay p { font-size: 12px; line-height: 1.7; }
-    #menuGrid { grid-template-columns: repeat(6, 56px); }
+    .controls { grid-template-columns: repeat(2, 1fr); }
+    .ctrlGroup:last-child { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); }
+    .ctrlGroup:last-child .ctrlHead { grid-column: 1 / -1; }
+    #menuGrid { grid-template-columns: repeat(8, 56px); }
+    .invLayout { flex-direction: column; }
+    .recipeBook { width: 100%; flex-basis: auto; }
+    #recipeList { grid-template-columns: repeat(2, minmax(0, 1fr)); max-height: 160px; }
     #chatLog, #chatInput { width: min(340px, calc(100vw - 24px)); }
     #teacherPanel { width: min(230px, calc(100vw - 24px)); }
   }
 
   @media (max-width: 680px) {
+    #overlay h1 { font-size: 52px; }
+    .controls { grid-template-columns: 1fr; gap: 8px 0; }
+    .ctrlGroup:last-child { grid-column: auto; display: flex; flex-direction: column; }
     #hud { transform: translateX(-50%) scale(0.88); transform-origin: bottom center; }
     #hearts { bottom: 66px; font-size: 20px; }
     #hunger { bottom: 88px; font-size: 17px; }
     #prompt { bottom: 104px; max-width: calc(100vw - 24px); text-align: center; }
     #info { font-size: 11px; max-width: calc(100vw - 24px); white-space: pre-wrap; }
+    .menuTop { align-items: flex-start; flex-direction: column; gap: 8px; }
+    #creativeSearch { width: 100%; }
     #menuGrid { grid-template-columns: repeat(4, 56px); }
     .panel { width: min(100vw - 20px, 540px); padding: 14px; }
+    #recipeList { grid-template-columns: 1fr; }
   }
 
   #bossBar {
@@ -313,17 +453,50 @@
     z-index: 11; text-align: center; min-width: 280px; pointer-events: none;
   }
   #bossBar.hidden { display: none; }
-  #bossBarName { font-size: 13px; letter-spacing: 2px; margin-bottom: 4px; color: #f4d94e; text-shadow: 0 0 8px rgba(244,217,78,0.5); }
+  #bossBarName { font-family: 'VT323', monospace; font-size: 18px; letter-spacing: 2px; margin-bottom: 4px; color: #f4d94e; text-shadow: 0 0 10px rgba(244,217,78,0.5); }
   #bossBarOuter { height: 10px; background: rgba(0,0,0,0.7); border: 2px solid rgba(255,200,0,0.4); box-shadow: 0 0 6px rgba(244,217,78,0.25); }
   #bossBarFill { height: 100%; background: linear-gradient(90deg, #8b0000, #e74c3c); transition: width 0.15s; }
 
-  #toast {
-    position: fixed; top: 60px; left: 50%; transform: translateX(-50%);
-    z-index: 11; background: rgba(20,26,20,0.94); padding: 8px 18px; pointer-events: none;
-    border: 2px solid rgba(255,255,255,0.18); border-top-color: rgba(255,255,255,0.35);
-    font-size: 13px; letter-spacing: 1px; text-align: center; opacity: 0; transition: opacity 0.3s;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  #questBar {
+    position: fixed; top: 54px; left: 50%; transform: translateX(-50%);
+    z-index: 11; text-align: center; min-width: 280px; pointer-events: none;
+    background: rgba(14,20,14,0.82); padding: 5px 12px 7px; border: 2px solid rgba(100,220,100,0.25);
   }
-  #toast.show { opacity: 1; }
-  #toast .toast-title { color: #f4d94e; font-weight: bold; }
-  #toast .toast-sub { color: rgba(255,255,255,0.75); font-size: 11px; margin-top: 2px; }
+  #questBar.hidden { display: none; }
+  #questBarName { font-family: 'VT323', monospace; font-size: 16px; letter-spacing: 2px; color: #7ac65c; }
+  #questBarText { font-size: 11px; color: rgba(255,255,255,0.65); margin: 1px 0 4px; }
+  #questBarOuter { height: 8px; background: rgba(0,0,0,0.6); border: 2px solid rgba(100,220,80,0.3); }
+  #questBarFill { height: 100%; background: linear-gradient(90deg, #2d6e18, #7ac65c); transition: width 0.25s; }
+
+  .questSection { margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.12); }
+  .questSectionHead { font-family: 'VT323', monospace; font-size: 15px; letter-spacing: 1px; color: #7ac65c; margin-bottom: 5px; }
+  .questRow { display: flex; gap: 4px; margin-bottom: 4px; }
+  .questRow select, .questRow input { flex: 1; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid rgba(255,255,255,0.2); font: 11px monospace; padding: 3px 4px; }
+  .questRow input { flex: 0 0 52px; }
+  .bossBtn { width: 100%; margin-top: 2px; background: rgba(150,30,30,0.85) !important; }
+
+  #toast {
+    position: fixed; top: 60px; left: 50%; transform: translateX(-50%) translateY(-6px);
+    z-index: 11; background: rgba(20,26,20,0.96); padding: 8px 20px; pointer-events: none;
+    border: 2px solid rgba(255,255,255,0.15); border-top-color: rgba(255,255,255,0.32);
+    font-size: 13px; letter-spacing: 1px; text-align: center; opacity: 0;
+    transition: opacity 0.22s ease, transform 0.22s ease;
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  #toast .toast-title { font-family: 'VT323', monospace; font-size: 18px; color: #f4d94e; letter-spacing: 2px; }
+  #toast .toast-sub { color: rgba(255,255,255,0.7); font-size: 11px; margin-top: 2px; }
+
+  #leaderboard {
+    position: fixed; top: 12px; left: 12px; z-index: 12; width: 210px;
+    background: var(--ui-bg); padding: 9px; font-size: 12px;
+    border: 2px solid var(--ui-edge-dark);
+    border-top-color: var(--ui-edge-light);
+    border-left-color: var(--ui-edge-light);
+  }
+  #leaderboard.hidden { display: none; }
+  #leaderboard h3 { font-family: 'VT323', monospace; font-size: 18px; margin-bottom: 6px; letter-spacing: 1px; color: #f4d94e; }
+  #leaderboard table { width: 100%; border-collapse: collapse; }
+  #leaderboard th, #leaderboard td { text-align: left; padding: 2px 4px; font-size: 11px; }
+  #leaderboard th { color: rgba(255,255,255,0.55); font-weight: normal; border-bottom: 1px solid rgba(255,255,255,0.15); }
+  #leaderboard td:nth-child(n+2), #leaderboard th:nth-child(n+2) { text-align: center; }

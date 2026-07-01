@@ -4,6 +4,9 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Mini Minecraft</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -18,34 +21,74 @@
 
 <div id="overlay">
   <h1>MINI MINECRAFT</h1>
-  <p>
-    Click to play<br><br>
-    WASD — move &nbsp;·&nbsp; Mouse <b>or</b> Arrow keys — look &nbsp;·&nbsp; Tab — trackpad look<br>
-    Space — jump &nbsp;·&nbsp; F — fly (creative only) &nbsp;·&nbsp; G — toggle Creative / Survival<br>
-    Hold Left click — mine / attack &nbsp;·&nbsp; Right click — place / eat / use &nbsp;·&nbsp; 1–9 / scroll — hotbar &nbsp;·&nbsp; E — inventory &amp; crafting<br>
-    R — sort backpack &nbsp;·&nbsp; B — party mode &nbsp;·&nbsp; Middle click — copy block (creative)<br>
-    Survival: better tools mine faster · craft tools at a crafting table · smelt ore in a furnace · T — chat<br>
-    Mobs fight back, hunger drains, food heals, Ctrl sprints, water slows falls &nbsp;·&nbsp; Esc — release mouse
-  </p>
+  <div class="clickHint">&#9654; Click anywhere to start &#9664;</div>
+  <div class="controls">
+    <div class="ctrlGroup">
+      <div class="ctrlHead">Movement</div>
+      <div class="ctrlItem"><kbd>WASD</kbd> Move</div>
+      <div class="ctrlItem"><kbd>Mouse</kbd> Look</div>
+      <div class="ctrlItem"><kbd>&#x2191;&#x2193;&#x2190;&#x2192;</kbd> Look (alt)</div>
+      <div class="ctrlItem"><kbd>Space</kbd> Jump</div>
+      <div class="ctrlItem"><kbd>Ctrl</kbd> Sprint</div>
+      <div class="ctrlItem"><kbd>Tab</kbd> Trackpad look / cursor</div>
+    </div>
+    <div class="ctrlGroup">
+      <div class="ctrlHead">Actions</div>
+      <div class="ctrlItem"><kbd>L-Click</kbd> Mine / Attack</div>
+      <div class="ctrlItem"><kbd>R-Click</kbd> Place / Eat / Use</div>
+      <div class="ctrlItem"><kbd>1–9</kbd> Hotbar slots</div>
+      <div class="ctrlItem"><kbd>Scroll</kbd> Cycle hotbar</div>
+      <div class="ctrlItem"><kbd>Mid-Click</kbd> Copy block</div>
+      <div class="ctrlItem"><kbd>B</kbd> Party mode</div>
+      <div class="ctrlItem"><kbd>Z</kbd> Give item to nearby player</div>
+    </div>
+    <div class="ctrlGroup">
+      <div class="ctrlHead">Menus &amp; Modes</div>
+      <div class="ctrlItem"><kbd>E</kbd> Inventory &amp; crafting</div>
+      <div class="ctrlItem"><kbd>R</kbd> Sort backpack</div>
+      <div class="ctrlItem"><kbd>G</kbd> Creative / Survival</div>
+      <div class="ctrlItem"><kbd>F</kbd> Fly (creative only)</div>
+      <div class="ctrlItem"><kbd>T</kbd> Chat</div>
+      <div class="ctrlItem"><kbd>Esc</kbd> Release mouse</div>
+    </div>
+  </div>
+  <div class="overlayFooter">Craft at a crafting table &nbsp;&#xb7;&nbsp; Smelt ore in a furnace &nbsp;&#xb7;&nbsp; Mobs fight back &nbsp;&#xb7;&nbsp; Hunger drains, food heals</div>
 </div>
 
 <div id="menu" class="hidden">
-  <h2>CREATIVE INVENTORY</h2>
-  <div id="menuGrid"></div>
-  <div class="hint">Click an item to put it in your hand · E or Esc to close</div>
+  <div class="creativePanel">
+    <div class="menuTop">
+      <h2>CREATIVE INVENTORY</h2>
+      <input id="creativeSearch" maxlength="28" autocomplete="off" placeholder="Search" />
+    </div>
+    <div id="creativeTabs" class="tabs"></div>
+    <div id="menuGrid"></div>
+    <div class="hint">Click an item to put it in your hand · E or Esc to close</div>
+  </div>
 </div>
 
 <div id="inv">
   <div class="panel">
     <h2 id="invTitle">INVENTORY</h2>
-    <div class="craftRow">
-      <div id="craftGrid" class="grid"></div>
-      <div class="sep">➜</div>
-      <div id="craftOut" class="grid"></div>
+    <div class="invLayout">
+      <aside id="recipeBook" class="recipeBook">
+        <div class="bookHead">
+          <h3>RECIPE BOOK</h3>
+          <input id="recipeSearch" maxlength="28" autocomplete="off" placeholder="Search" />
+        </div>
+        <div id="recipeList"></div>
+      </aside>
+      <div class="invMain">
+        <div class="craftRow">
+          <div id="craftGrid" class="grid"></div>
+          <div class="sep">➜</div>
+          <div id="craftOut" class="grid"></div>
+        </div>
+        <div id="invBackpack" class="grid invSection"></div>
+        <div id="invHotbar" class="grid invSection hot"></div>
+        <div class="hint">Click a stack to pick it up, right-click to split · click a recipe to load its ingredients · E / Esc to close</div>
+      </div>
     </div>
-    <div id="invBackpack" class="grid invSection"></div>
-    <div id="invHotbar" class="grid invSection hot"></div>
-    <div class="hint">Click a stack to pick it up, click again to place · place items in the grid to craft · E / Esc to close</div>
   </div>
 </div>
 
@@ -81,6 +124,7 @@
 <div id="death" class="hidden"><h1>YOU DIED</h1><p>respawning…</p></div>
 
 <div id="bossBar" class="hidden"><div id="bossBarName">Boss</div><div id="bossBarOuter"><div id="bossBarFill" style="width:100%"></div></div></div>
+<div id="questBar" class="hidden"><div id="questBarName">Quest</div><div id="questBarText">0 / 0</div><div id="questBarOuter"><div id="questBarFill" style="width:0%"></div></div></div>
 <div id="toast"><div class="toast-title" id="toastTitle"></div><div class="toast-sub" id="toastSub"></div></div>
 
 <div id="join" class="hidden">
@@ -99,8 +143,37 @@
     <button id="teleportAll" type="button">Teleport</button>
     <button id="resetWorld" type="button">Reset</button>
   </div>
+  <div class="questSection">
+    <div class="questSectionHead">CLASS QUEST</div>
+    <div class="questRow">
+      <select id="questType">
+        <option value="mine">Mine blocks</option>
+        <option value="build">Place blocks</option>
+        <option value="kill">Defeat mobs</option>
+      </select>
+      <input id="questTarget" type="number" min="1" max="9999" value="30" />
+    </div>
+    <div class="questRow">
+      <button id="setQuestBtn" type="button">Set Goal</button>
+      <button id="clearQuestBtn" type="button">Clear</button>
+    </div>
+    <button id="spawnBossBtn" type="button" class="bossBtn">⚔ BOSS RAID</button>
+  </div>
+  <div class="actions">
+    <button id="tpArenaBtn" type="button">🌋 TP to Arena</button>
+    <button id="tpBackBtn" type="button">↩ Bring Back</button>
+  </div>
+  <button id="spawnArenaBossBtn" type="button" class="bossBtn">🐉 ARENA BOSS</button>
+  <button id="spawnColossusBtn" type="button" class="bossBtn">🌋 MAGMA COLOSSUS</button>
 </div>
 <div id="mpStatus" class="hidden"></div>
+<div id="leaderboard" class="hidden">
+  <h3>LEADERBOARD</h3>
+  <table>
+    <thead><tr><th>Student</th><th>Kills</th><th>Blocks</th><th>Quest</th></tr></thead>
+    <tbody id="leaderboardBody"></tbody>
+  </table>
+</div>
 <div id="locator"></div>
 <div id="chatLog"></div>
 <input id="chatInput" maxlength="120" autocomplete="off" placeholder="Say something…" />
@@ -111,13 +184,17 @@
 
 <script type="module">
 import * as THREE from 'three';
-import { SEA, rand, smooth2, rand3, smooth3, isDesert, heightAt, surfaceY } from './shared/worldgen.js';
+import { SEA, rand, smooth2, rand3, smooth3, isDesert, heightAt, surfaceY, ARENA, arenaDist2, inArena } from './shared/worldgen.js';
 
 const TAU = Math.PI * 2;
 const urlParams = new URLSearchParams(location.search);
 const MULTIPLAYER = location.protocol.startsWith('http') && !urlParams.has('single') && !location.search.includes('norender');
-const IS_TEACHER = MULTIPLAYER && urlParams.has('teacher');
+let IS_TEACHER = MULTIPLAYER && urlParams.has('teacher');   // server may demote on join if a teacher already exists
 const LOCAL_COLOR = '#' + Math.floor(0x5577aa + Math.random() * 0x777755).toString(16).slice(0, 6).padStart(6, '0');
+const PERF = urlParams.has('perf');
+const SHADOW_QUALITY = urlParams.get('shadows') === 'low' ? 'low' : 'normal';
+let saveDirty = true;
+function markSaveDirty() { saveDirty = true; }
 
 // ============================================================ scene
 const scene = new THREE.Scene();
@@ -127,7 +204,7 @@ scene.fog = new THREE.Fog(0x9fd4ff, 55, 100);   // far ≈ RADIUS*CHUNK*0.9 so t
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(innerWidth, innerHeight);
-const MAX_PIXEL_RATIO = Math.min(devicePixelRatio, 2);
+const MAX_PIXEL_RATIO = Math.min(devicePixelRatio, 1.5);
 let renderPixelRatio = MAX_PIXEL_RATIO;
 renderer.setPixelRatio(renderPixelRatio);
 renderer.autoClear = false;
@@ -142,7 +219,7 @@ scene.add(hemi);
 const sun = new THREE.DirectionalLight(0xffffff, 0.8);
 sun.position.set(50, 100, 30);
 sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.mapSize.set(1024, 1024);
 const SHADOW_SPAN = 70;   // ~ covers RADIUS*CHUNK area around the player
 sun.shadow.camera.left = -SHADOW_SPAN; sun.shadow.camera.right = SHADOW_SPAN;
 sun.shadow.camera.top = SHADOW_SPAN;   sun.shadow.camera.bottom = -SHADOW_SPAN;
@@ -272,6 +349,10 @@ const BLOCKS = {
   sunflower: { name: 'Sunflower', color: 0xffe84a, alpha: 0.92, pattern: 'sunflower' },
   rose:      { name: 'Rose',      color: 0xe84a4a, alpha: 0.92, pattern: 'rose'      },
   bluebell:  { name: 'Bluebell', color: 0x6a9eff, alpha: 0.92, pattern: 'bluebell'  },
+  mossy_cobble:{ name: 'Mossy Cobble', color: 0x6f7a5a, pattern: 'cobble' },
+  path:       { name: 'Path',    color: 0x7a6a4a, pattern: 'dirt' },
+  tall_grass: { name: 'Tall Grass', color: 0x6fae4e, alpha: 0.9, pattern: 'tall_grass' },
+  mushroom:   { name: 'Mushroom', color: 0xc0392b, alpha: 0.92, pattern: 'mushroom' },
   // open states of door/trapdoor — passable + see-through; not shown in the creative menu
   door_open:     { name: 'Door',    color: 0x8a5d2e, alpha: 0.28, pattern: 'door' },
   trapdoor_open: { name: 'Trapdoor',color: 0x8a5d2e, alpha: 0.28, pattern: 'trapdoor' },
@@ -285,13 +366,21 @@ const TOGGLE = { door: 'door_open', door_open: 'door', trapdoor: 'trapdoor_open'
 // Tier-1 sub-cube shapes (fixed orientation): door = thin slab, trapdoor = thin plate, bed = low slab.
 // Values are min/max corners in [0,1] local cell space.
 const SHAPE = {
-  door:          { mn: [0, 0, 0],    mx: [1, 1, 0.18] },   // thin slab on the north face
-  door_open:     { mn: [0, 0, 0],    mx: [0.18, 1, 1] },   // swung 90° to the west face
+  door:          { mn: [0.04, 0, 0.02], mx: [0.96, 1, 0.14] }, // thin slab on the north face
+  door_open:     { mn: [0.02, 0, 0.04], mx: [0.14, 1, 0.96] }, // swung 90° to the west face
   trapdoor:      { mn: [0, 0.82, 0], mx: [1, 1, 1] },      // flat plate at cell top (stand on it)
   trapdoor_open: { mn: [0, 0, 0],    mx: [0.18, 1, 1] },   // flipped up against the west face
   bed:           { mn: [0, 0, 0],    mx: [1, 0.5, 1] },    // low mattress slab
+  torch:         { mn: [0.38, 0, 0.38], mx: [0.62, 0.72, 0.62] },
 };
-const THIN_TYPES = new Set(Object.keys(SHAPE));   // emit custom geometry + don't occlude neighbours
+const CROSS_PLANTS = {
+  sunflower:  { width: 0.92, height: 1.0 },
+  rose:       { width: 0.78, height: 0.82 },
+  bluebell:   { width: 0.78, height: 0.82 },
+  tall_grass: { width: 0.90, height: 0.82 },
+  mushroom:   { width: 0.58, height: 0.55 },
+};
+const THIN_TYPES = new Set([...Object.keys(SHAPE), ...Object.keys(CROSS_PLANTS)]);   // custom geometry + don't occlude neighbours
 
 // ---- tool tiers: mining speed multiplier + harvest level + tint ----
 const TIERS = {
@@ -340,6 +429,9 @@ const FOODS = {
   apple:        { name: 'Apple',   color: 0xd83b34, hunger: 4, heal: 1 },
 };
 
+// ---- spawn eggs (creative only) — built after mob kind arrays are defined below ----
+const SPAWN_EGGS = {}; // populated later: egg_zombie, egg_dragon, etc.
+
 // ---- per-block mining: hardness (sec, bare hand baseline), proper tool, harvest level ----
 // level 0 drops by hand; higher levels need a tool of >= that level or nothing drops.
 const MINE = {
@@ -356,6 +448,8 @@ const MINE = {
   trapdoor:{h:1.4,t:'axe',l:0}, trapdoor_open:{h:1.4,t:'axe',l:0},
   leaves:{h:0.25,t:null,l:0}, glass:{h:0.3,t:null,l:0}, cactus:{h:0.4,t:null,l:0},
   sunflower:{h:0.05,t:null,l:0}, rose:{h:0.05,t:null,l:0}, bluebell:{h:0.05,t:null,l:0},
+  tall_grass:{h:0.05,t:null,l:0}, mushroom:{h:0.05,t:null,l:0},
+  mossy_cobble:{h:1.6,t:'pick',l:1}, path:{h:0.6,t:'shovel',l:0},
   cheese:{h:0.5,t:null,l:0}, torch:{h:0.1,t:null,l:0}, water:{h:99,t:null,l:0},
   bedrock:{h:Infinity,t:'pick',l:9},
 };
@@ -372,11 +466,12 @@ const dropOf = (t) => (t in DROPS ? DROPS[t] : t);
 const isBlock  = (id) => id in BLOCKS;
 const isTool   = (id) => id in TOOLS;
 const isOpaque = (t)  => t != null && isBlock(t) && BLOCKS[t].alpha == null;
-const PASSABLE = new Set(['water', 'torch', 'sunflower', 'rose', 'bluebell']);
+const PASSABLE = new Set(['water', 'torch', 'sunflower', 'rose', 'bluebell', 'tall_grass', 'mushroom']);
 const isSolid  = (t)  => t != null && isBlock(t) && !PASSABLE.has(t) && !WALKABLE.has(t);
-const isFood   = (id) => id in FOODS;
-const itemDef  = (id) => BLOCKS[id] || TOOLS[id] || FOODS[id] || ITEMS[id];
-const swatch   = (id) => '#' + itemDef(id).color.toString(16).padStart(6, '0');
+const isFood      = (id) => id in FOODS;
+const isSpawnEgg  = (id) => id in SPAWN_EGGS;
+const itemDef     = (id) => BLOCKS[id] || TOOLS[id] || FOODS[id] || ITEMS[id] || SPAWN_EGGS[id];
+const swatch      = (id) => '#' + itemDef(id).color.toString(16).padStart(6, '0');
 const itemName = (id) => itemDef(id).name;
 // max stack: tools & weapons don't stack
 const maxStack = (id) => (id && (isTool(id) || (TOOLS[id] && TOOLS[id].weapon)) || id === 'sword') ? 1 : 64;
@@ -567,27 +662,51 @@ function makeTexture(hex, pattern) {
       case 'sunflower':
         l = 1 + (rnd() - 0.5) * 0.12;
         { const cx2 = 8, cy2 = 6, r2 = Math.hypot(x - cx2, y - cy2);
-          if (r2 < 3) { ctx.fillStyle = '#6a4100'; ctx.fillRect(x, y, 1, 1); continue; }
-          if (r2 < 6.5) l *= 1.3 + (rnd() - 0.5) * 0.2;
-          else if (r2 > 5 && r2 < 8) { ctx.fillStyle = `rgb(${Math.min(255,(col.g*255*l*.9)|0)},${Math.min(255,(col.g*255*l*1.1)|0)},0)`; ctx.fillRect(x,y,1,1); continue; }
-          else l *= 0.5;
+          if (r2 < 2.4) { ctx.fillStyle = '#6a4100'; ctx.fillRect(x, y, 1, 1); continue; }
+          if (r2 < 5.8) l *= 1.3 + (rnd() - 0.5) * 0.2;
+          else if (x >= 7 && x <= 8 && y >= 7) { ctx.fillStyle = '#27751f'; ctx.fillRect(x, y, 1, 1); continue; }
+          else if (y >= 10 && ((x >= 5 && x <= 7 && y <= 12) || (x >= 9 && x <= 11 && y >= 11 && y <= 13))) { ctx.fillStyle = '#2f8a25'; ctx.fillRect(x, y, 1, 1); continue; }
+          else { ctx.clearRect(x, y, 1, 1); continue; }
         }
         break;
       case 'rose':
         l = 1 + (rnd() - 0.5) * 0.15;
-        { const cx2 = 8, cy2 = 7, r2 = Math.hypot(x - cx2, y - cy2);
-          if (r2 < 4.5) l *= 1.4;
-          else if (r2 < 7) l *= 0.9;
-          else { ctx.fillStyle = '#2a7a20'; ctx.fillRect(x, y, 1, 1); continue; }
+        { const cx2 = 8, cy2 = 5, r2 = Math.hypot(x - cx2, y - cy2);
+          if (r2 < 3.8) l *= 1.35;
+          else if (x >= 7 && x <= 8 && y >= 7) { ctx.fillStyle = '#2a7a20'; ctx.fillRect(x, y, 1, 1); continue; }
+          else if (y >= 10 && ((x >= 5 && x <= 7) || (x >= 9 && x <= 11))) { ctx.fillStyle = '#328a26'; ctx.fillRect(x, y, 1, 1); continue; }
+          else { ctx.clearRect(x, y, 1, 1); continue; }
         }
         break;
       case 'bluebell':
         l = 1 + (rnd() - 0.5) * 0.12;
         { const petal = Math.floor((Math.atan2(y - 7, x - 8) / Math.PI * 3 + 3) % 3);
-          const r2 = Math.hypot(x - 8, y - 7);
-          if (r2 < 3) { ctx.fillStyle = '#fff'; ctx.fillRect(x, y, 1, 1); continue; }
-          if (r2 < 6.5) l *= petal === 0 ? 1.35 : petal === 1 ? 1.1 : 0.85;
-          else { ctx.fillStyle = '#1c6a20'; ctx.fillRect(x, y, 1, 1); continue; }
+          const r2 = Math.hypot(x - 8, y - 6);
+          if (r2 < 2) { ctx.fillStyle = '#eef5ff'; ctx.fillRect(x, y, 1, 1); continue; }
+          if (r2 < 5.2 && y <= 9) l *= petal === 0 ? 1.35 : petal === 1 ? 1.1 : 0.85;
+          else if (x >= 7 && x <= 8 && y >= 8) { ctx.fillStyle = '#1c6a20'; ctx.fillRect(x, y, 1, 1); continue; }
+          else { ctx.clearRect(x, y, 1, 1); continue; }
+        }
+        break;
+      case 'tall_grass':
+        l = 1 + (rnd() - 0.5) * 0.15;
+        {
+          const blade =
+            Math.abs(x - 8) <= 1 && y >= 3 ||
+            Math.abs(x - (14 - y * 0.45)) < 1.2 && y >= 5 ||
+            Math.abs(x - (y * 0.45 + 1)) < 1.2 && y >= 6 ||
+            Math.abs(x - 4) <= 1 && y >= 9 ||
+            Math.abs(x - 12) <= 1 && y >= 10;
+          if (!blade) { ctx.clearRect(x, y, 1, 1); continue; }
+          l *= 0.75 + (15 - y) * 0.025;
+        }
+        break;
+      case 'mushroom':
+        l = 1 + (rnd() - 0.5) * 0.12;
+        { const r2 = Math.hypot(x - 8, y - 6);
+          if (y >= 10 && x >= 6 && x <= 9) { ctx.fillStyle = '#efe6cf'; ctx.fillRect(x, y, 1, 1); continue; }  // stem
+          if (r2 < 6) { l *= 1.0; if (rnd() > 0.78) { ctx.fillStyle = '#fff'; ctx.fillRect(x, y, 1, 1); continue; } }  // red cap + white spots
+          else { l *= 0.0; ctx.clearRect(x, y, 1, 1); continue; }
         }
         break;
     }
@@ -603,12 +722,18 @@ function makeTexture(hex, pattern) {
   }
   const t = new THREE.CanvasTexture(c);
   t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+  t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping;
   return t;
 }
 function makeMaterial(type) {
   const b = BLOCKS[type];
   const m = new THREE.MeshLambertMaterial({ map: makeTexture(b.color, b.pattern) });
   if (b.alpha != null) { m.transparent = true; m.opacity = b.alpha; }
+  if (type in CROSS_PLANTS) {
+    m.side = THREE.DoubleSide;
+    m.opacity = 1;
+    m.alphaTest = 0.1;
+  }
   if (type === 'torch') m.emissive.setHex(0xff8a1d);
   return m;
 }
@@ -646,6 +771,7 @@ function itemPreviewStyle(id) {
 
 const chunkMeshes = new Map();   // "cx,cz" -> THREE.Group
 const dirty = new Set();         // "cx,cz" keys whose mesh must rebuild next frame
+const perfStats = { chunkMs: 0, meshMs: 0, dirtyBuilt: 0, chunksGenerated: 0 };
 
 // per-face geometry: 6 faces, each as [normal, 4 corner offsets (CCW seen from outside)]
 const FACES = [
@@ -670,6 +796,67 @@ function emitBox(a, x, y, z, mn, mx) {
   }
 }
 
+function emitPlantCross(a, x, y, z, shape) {
+  const cx = x + 0.5, cz = z + 0.5;
+  const r = shape.width * 0.5;
+  const y0 = y, y1 = y + shape.height;
+  const planes = [
+    [[cx - r, y0, cz - r], [cx - r, y1, cz - r], [cx + r, y1, cz + r], [cx + r, y0, cz + r]],
+    [[cx + r, y0, cz - r], [cx + r, y1, cz - r], [cx - r, y1, cz + r], [cx - r, y0, cz + r]],
+  ];
+  for (const p of planes) {
+    const dx = p[3][0] - p[0][0], dz = p[3][2] - p[0][2];
+    const len = Math.hypot(dx, dz) || 1;
+    const nx = -dz / len, nz = dx / len;
+    for (const idx of [0, 1, 2, 0, 2, 3]) {
+      const v = p[idx];
+      a.pos.push(v[0], v[1], v[2]);
+      a.norm.push(nx, 0, nz);
+      a.uv.push(UVQUAD[idx][0], UVQUAD[idx][1]);
+    }
+  }
+}
+
+function emitQuad(a, n, corners, uvW, uvH) {
+  for (const idx of [0, 1, 2, 0, 2, 3]) {
+    const v = corners[idx];
+    a.pos.push(v[0], v[1], v[2]);
+    a.norm.push(n[0], n[1], n[2]);
+    a.uv.push(idx === 0 || idx === 3 ? 0 : uvW, idx < 2 ? 0 : uvH);
+  }
+}
+
+function emitGreedyFace(a, faceIndex, plane, u, v, w, h) {
+  switch (faceIndex) {
+    case 0: emitQuad(a, [1, 0, 0], [[plane, v, u], [plane, v + h, u], [plane, v + h, u + w], [plane, v, u + w]], w, h); break;
+    case 1: emitQuad(a, [-1, 0, 0], [[plane, v, u + w], [plane, v + h, u + w], [plane, v + h, u], [plane, v, u]], w, h); break;
+    case 2: emitQuad(a, [0, 1, 0], [[u, plane, v + h], [u + w, plane, v + h], [u + w, plane, v], [u, plane, v]], w, h); break;
+    case 3: emitQuad(a, [0, -1, 0], [[u, plane, v], [u + w, plane, v], [u + w, plane, v + h], [u, plane, v + h]], w, h); break;
+    case 4: emitQuad(a, [0, 0, 1], [[u + w, v, plane], [u + w, v + h, plane], [u, v + h, plane], [u, v, plane]], w, h); break;
+    case 5: emitQuad(a, [0, 0, -1], [[u, v, plane], [u, v + h, plane], [u + w, v + h, plane], [u + w, v, plane]], w, h); break;
+  }
+}
+
+function greedyMergeCells(cells, emit) {
+  const open = new Set(cells);
+  const parseCell = (c) => c.split(',').map(Number);
+  while (open.size) {
+    const first = open.values().next().value;
+    const [u0, v0] = parseCell(first);
+    let w = 1;
+    while (open.has((u0 + w) + ',' + v0)) w++;
+    let h = 1, canGrow = true;
+    while (canGrow) {
+      for (let du = 0; du < w; du++) {
+        if (!open.has((u0 + du) + ',' + (v0 + h))) { canGrow = false; break; }
+      }
+      if (canGrow) h++;
+    }
+    for (let du = 0; du < w; du++) for (let dv = 0; dv < h; dv++) open.delete((u0 + du) + ',' + (v0 + dv));
+    emit(u0, v0, w, h);
+  }
+}
+
 // Should the face of `type` block (at x,y,z) toward neighbour `nt` be drawn?
 function faceExposed(type, nt) {
   if (nt == null) return true;                 // air → always
@@ -682,40 +869,68 @@ function faceExposed(type, nt) {
 function chunkOwnedBlocks(cx, cz) { return chunkBlocks.get(chunkKey(cx, cz)); }
 
 function buildChunkMesh(cx, cz) {
+  const started = performance.now();
   const ck = chunkKey(cx, cz);
   const owned = chunkBlocks.get(ck);
   // remove any existing group first
   const old = chunkMeshes.get(ck);
   if (old) { scene.remove(old); for (const m of old.children) m.geometry.dispose(); chunkMeshes.delete(ck); }
-  if (!owned || owned.size === 0) return;
+  if (!owned || owned.size === 0) {
+    perfStats.meshMs += performance.now() - started;
+    return;
+  }
 
   // accumulate per-type vertex data
   const acc = new Map();   // type -> {pos:[], norm:[], uv:[]}
   const get = (x, y, z) => world.get(key(x, y, z));
+  const faceGroups = new Map();   // "type|face|plane" -> Set("u,v")
+  const addFace = (type, faceIndex, plane, u, v) => {
+    const gk = type + '|' + faceIndex + '|' + plane;
+    let cells = faceGroups.get(gk);
+    if (!cells) { cells = new Set(); faceGroups.set(gk, cells); }
+    cells.add(u + ',' + v);
+  };
   for (const k of owned) {
     const [x, y, z] = k.split(',').map(Number);
     const type = world.get(k);
     if (type == null) continue;
-    let a = acc.get(type);
-    if (!a) { a = { pos: [], norm: [], uv: [] }; acc.set(type, a); }
-    if (THIN_TYPES.has(type)) { emitBox(a, x, y, z, SHAPE[type].mn, SHAPE[type].mx); continue; }
-    for (const f of FACES) {
+    if (type in CROSS_PLANTS) {
+      let a = acc.get(type);
+      if (!a) { a = { pos: [], norm: [], uv: [] }; acc.set(type, a); }
+      emitPlantCross(a, x, y, z, CROSS_PLANTS[type]);
+      continue;
+    }
+    if (THIN_TYPES.has(type)) {
+      let a = acc.get(type);
+      if (!a) { a = { pos: [], norm: [], uv: [] }; acc.set(type, a); }
+      emitBox(a, x, y, z, SHAPE[type].mn, SHAPE[type].mx);
+      continue;
+    }
+    for (let faceIndex = 0; faceIndex < FACES.length; faceIndex++) {
+      const f = FACES[faceIndex];
       const nt = get(x + f.n[0], y + f.n[1], z + f.n[2]);
       if (!faceExposed(type, nt)) continue;
-      // two triangles 0-1-2, 0-2-3
-      for (const [a0, a1, a2] of [[0,1,2],[0,2,3]]) {
-        for (const idx of [a0, a1, a2]) {
-          const c = f.c[idx];
-          a.pos.push(x + c[0], y + c[1], z + c[2]);
-          a.norm.push(f.n[0], f.n[1], f.n[2]);
-          a.uv.push(UVQUAD[idx][0], UVQUAD[idx][1]);
-        }
-      }
+      if (faceIndex === 0) addFace(type, faceIndex, x + 1, z, y);
+      else if (faceIndex === 1) addFace(type, faceIndex, x, z, y);
+      else if (faceIndex === 2) addFace(type, faceIndex, y + 1, x, z);
+      else if (faceIndex === 3) addFace(type, faceIndex, y, x, z);
+      else if (faceIndex === 4) addFace(type, faceIndex, z + 1, x, y);
+      else addFace(type, faceIndex, z, x, y);
     }
   }
-  if (acc.size === 0) return;
+  for (const [gk, cells] of faceGroups) {
+    const [type, faceIndexText, planeText] = gk.split('|');
+    let a = acc.get(type);
+    if (!a) { a = { pos: [], norm: [], uv: [] }; acc.set(type, a); }
+    greedyMergeCells(cells, (u, v, w, h) => emitGreedyFace(a, Number(faceIndexText), Number(planeText), u, v, w, h));
+  }
+  if (acc.size === 0) {
+    perfStats.meshMs += performance.now() - started;
+    return;
+  }
 
   const group = new THREE.Group();
+  group.userData.cx = cx; group.userData.cz = cz;
   for (const [type, a] of acc) {
     if (!a.pos.length) continue;
     const g = new THREE.BufferGeometry();
@@ -723,12 +938,13 @@ function buildChunkMesh(cx, cz) {
     g.setAttribute('normal', new THREE.BufferAttribute(new Float32Array(a.norm), 3));
     g.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(a.uv), 2));
     const mesh = new THREE.Mesh(g, materials[type]);
-    if (isOpaque(type)) { mesh.castShadow = true; mesh.receiveShadow = true; }
+    if (isOpaque(type)) { mesh.castShadow = SHADOW_QUALITY !== 'low'; mesh.receiveShadow = true; }
     else { mesh.receiveShadow = true; }
     group.add(mesh);
   }
   scene.add(group);
   chunkMeshes.set(ck, group);
+  perfStats.meshMs += performance.now() - started;
 }
 
 // mark a chunk (and border-neighbour chunks if the block sits on a chunk edge) dirty
@@ -741,15 +957,17 @@ function markDirty(x, y, z) {
   if (lz === 0) dirty.add(chunkKey(cx, cz - 1));
   if (lz === CHUNK - 1) dirty.add(chunkKey(cx, cz + 1));
 }
-function flushDirty(limit = Infinity) {
+function flushDirty(msBudget = 2, limit = Infinity) {
   if (!dirty.size) return;
+  const started = performance.now();
   let done = 0;
   for (const ck of [...dirty]) {
-    if (done >= limit) break;
+    if (done >= limit || performance.now() - started >= msBudget) break;
     dirty.delete(ck);
     if (loaded.has(ck)) {
       const [cx, cz] = ck.split(',').map(Number);
       buildChunkMesh(cx, cz);
+      perfStats.dirtyBuilt++;
     }
     done++;
   }
@@ -761,7 +979,12 @@ function flushDirty(limit = Infinity) {
 const SIZE = 40;   // client-only: default mob roam-leash radius
 
 // ---- chunked, effectively-infinite world ----
-const CHUNK = 16, CHUNK_RADIUS = 7;    // load radius in chunks (Chebyshev/square)
+const CHUNK = 16;
+const BASE_CHUNK_RADIUS = 6;
+const MAX_ADAPTIVE_CHUNK_RADIUS = 7;
+let chunkRadius = BASE_CHUNK_RADIUS;    // load radius in chunks (Chebyshev/square)
+let chunkLoadQueue = [], chunkQueueCenter = '', chunkQueueRadius = 0;
+let chunkAdaptT = 0;
 const loaded = new Set();              // "cx,cz" keys of generated chunks
 const chunkKey = (cx, cz) => cx + ',' + cz;
 const chunkOf = (x, z) => [Math.floor(x / CHUNK), Math.floor(z / CHUNK)];
@@ -770,10 +993,30 @@ const chunkBlocks = new Map();         // "cx,cz" -> Set of world keys placed by
 // set a world block AND record it as owned by the chunk currently being generated
 let genCur = null;                     // Set being filled by the in-progress genChunk
 function placeBlock(k, type) { world.set(k, type); if (genCur) genCur.add(k); }
+function carveBlock(k) { world.delete(k); if (genCur) genCur.delete(k); }   // remove a block during gen (e.g. ponds, dungeons)
 
+// CHUNK = 16. True when (x,z) sits at least `m` blocks from every edge of its
+// own chunk, so a structure of half-width `m` anchored here fits entirely inside
+// the chunk that owns it — required for multi-block structures because chunks
+// unload/regenerate independently (unlike trees, whose leaves may safely spill).
+function fitsInChunk(x, z, m) {
+  const lx = ((x % CHUNK) + CHUNK) % CHUNK, lz = ((z % CHUNK) + CHUNK) % CHUNK;
+  return lx >= m && lx <= CHUNK - 1 - m && lz >= m && lz <= CHUNK - 1 - m;
+}
+
+// boss arena column: solid stone/cobble floor ringed by an obsidian wall —
+// no ores, no decoration, carved straight from heightAt's arena override.
+function genArenaColumn(x, z, h) {
+  const isFloor = arenaDist2(x, z) <= ARENA.radius * ARENA.radius;
+  for (let y = 0; y <= h; y++) {
+    const type = y === 0 ? 'bedrock' : isFloor ? (y === h ? 'cobblestone' : 'stone') : 'obsidian';
+    placeBlock(key(x, y, z), type);
+  }
+}
 // terrain column generator (no render) — used by genChunk
 function genColumn(x, z) {
   const h = heightAt(x, z);
+  if (inArena(x, z)) { genArenaColumn(x, z, h); return; }
   let top = 'grass';
   if (h >= 20) top = 'snow'; else if (h <= SEA) top = 'sand';
   else if (isDesert(x, z)) top = 'sand';
@@ -801,16 +1044,67 @@ function genTree(x, z) {
   const h = heightAt(x, z);
   if (h <= SEA || h >= 20) return;
   if (rand(x * 7.3, z * 3.1) > 0.985 && world.get(key(x, h, z)) === 'grass') {
+    // ~1 in 8 trees is a big oak: taller trunk + a broad, rounded canopy
+    const big = rand(x * 2.7, z * 8.9) > 0.875;
+    if (big) { genBigOak(x, z, h); return; }
     const th = 4 + Math.floor(rand(x, z) * 3);
     for (let i = 1; i <= th; i++) placeBlock(key(x, h + i, z), 'log');
     const ty = h + th;
     for (let dx = -2; dx <= 2; dx++) for (let dz = -2; dz <= 2; dz++) for (let dy = -1; dy <= 1; dy++) {
       if (Math.abs(dx) === 2 && Math.abs(dz) === 2) continue;
-      const k = key(x + dx, ty + dy, z + dz);
-      if (!world.has(k)) placeBlock(k, 'leaves');
+      leafAt(x + dx, ty + dy, z + dz);
     }
-    placeBlock(key(x, ty + 1, z), 'leaves');
+    leafAt(x, ty + 1, z);
   }
+}
+// place a leaf only above the local terrain surface, so canopies that spill into a
+// neighbouring chunk never collide with that chunk's terrain/caves — which would
+// make the result depend on which chunk generated first. Pure → deterministic.
+function leafAt(x, y, z) {
+  if (y > heightAt(x, z) && !world.has(key(x, y, z))) placeBlock(key(x, y, z), 'leaves');
+}
+// big oak: 6–8 trunk, 7×7 spherical-ish leaf crown
+function genBigOak(x, z, h) {
+  const th = 6 + Math.floor(rand(x * 1.3, z * 4.1) * 3);
+  for (let i = 1; i <= th; i++) placeBlock(key(x, h + i, z), 'log');
+  const ty = h + th;
+  for (let dy = -2; dy <= 2; dy++) {
+    const r = dy === 0 || dy === -1 ? 3 : Math.abs(dy) === 2 ? 1 : 2;
+    for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+      if (dx * dx + dz * dz > r * r + 1) continue;
+      leafAt(x + dx, ty + dy, z + dz);
+    }
+  }
+}
+// conical spruce for cold, high terrain (where regular trees don't spawn)
+function genPine(x, z) {
+  const h = heightAt(x, z);
+  if (h < 18) return;
+  if (rand(x * 9.7, z * 6.3) > 0.97 && world.get(key(x, h, z)) === 'snow') {
+    const th = 6 + Math.floor(rand(x * 3.1, z * 1.7) * 4);
+    for (let i = 1; i <= th; i++) placeBlock(key(x, h + i, z), 'log');
+    // layered skirt of leaves, widest at the bottom, narrowing toward the tip
+    for (let layer = 0; layer < 4; layer++) {
+      const ly = h + 2 + layer * Math.max(1, Math.floor((th - 2) / 4));
+      const r = 3 - layer;
+      if (r <= 0) break;
+      for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+        if (Math.abs(dx) + Math.abs(dz) > r) continue;
+        if (dx === 0 && dz === 0) continue;
+        leafAt(x + dx, ly, z + dz);
+      }
+    }
+    placeBlock(key(x, h + th + 1, z), 'snow');   // snowy tip
+  }
+}
+// Place a small plant on top of grass. Overwrites only air or a leaf that spilled
+// in from a neighbouring chunk's tree — never a solid structure block (those are
+// generated in-chunk before decoration). Overwriting the leaf keeps generation
+// order-independent: a flower always wins the tie, exactly as the original did.
+function decorAt(x, h, z, type) {
+  if (world.get(key(x, h, z)) !== 'grass') return;
+  const k = key(x, h + 1, z), cur = world.get(k);
+  if (cur === undefined || cur === 'leaves') placeBlock(k, type);
 }
 function genSurfaceBits(x, z) {
   const h = heightAt(x, z);
@@ -820,10 +1114,173 @@ function genSurfaceBits(x, z) {
     for (let i = 1; i <= th; i++) placeBlock(key(x, h + i, z), 'cactus');
   } else if (top === 'grass' && h > SEA && rand(x * 5.9, z * 11.3) > 0.996) {
     placeBlock(key(x, h + 1, z), 'pumpkin');
-  } else if (top === 'grass' && h > SEA && rand(x * 4.1, z * 7.3) > 0.974) {
-    const fi = Math.floor(rand(x * 2.3, z * 5.7) * 3);
-    placeBlock(key(x, h + 1, z), ['sunflower', 'rose', 'bluebell'][fi]);
+  } else if (top === 'grass' && h > SEA && rand(x * 4.1, z * 7.3) > 0.86) {
+    // flower meadows: a low-frequency field picks ONE species per area, so adjacent
+    // cells naturally agree and form patches — all decided locally (no cross-column
+    // writes), which keeps generation deterministic across chunk unload/regen.
+    const fi = Math.min(2, Math.floor(smooth2(x / 14 + 3, z / 14 + 8) * 3));
+    decorAt(x, h, z, ['sunflower', 'rose', 'bluebell'][fi]);
+  } else if (top === 'grass' && h > SEA && rand(x * 8.3, z * 3.7) > 0.74) {
+    // dense tall grass for a lush, lived-in look
+    decorAt(x, h, z, 'tall_grass');
+  } else if (top === 'grass' && h > SEA && smooth2(x / 7 - 11, z / 7 + 4) > 0.7 && rand(x * 6.1, z * 9.4) > 0.8) {
+    // mushroom clumps gathered in shadier patches (field-gated, still per-cell)
+    decorAt(x, h, z, 'mushroom');
   }
+}
+
+// ---- structures: all deterministic from (x,z); each fits inside its owning
+// chunk (see fitsInChunk) so it survives the unload/regenerate cycle. ----
+
+// true when the (2m+1)² ground footprint around (x,z) is flat grass
+function flatGrass(x, z, m, maxDrop = 1) {
+  const h = heightAt(x, z);
+  if (h <= SEA || h >= 20 || world.get(key(x, h, z)) !== 'grass') return false;
+  for (let dx = -m; dx <= m; dx++) for (let dz = -m; dz <= m; dz++)
+    if (Math.abs(heightAt(x + dx, z + dz) - h) > maxDrop) return false;
+  return true;
+}
+
+// rocky mound — stone/gravel/mossy boulder sitting on the grass
+function genBoulder(x, z) {
+  if (!fitsInChunk(x, z, 1) || !flatGrass(x, z, 1)) return;
+  if (rand(x * 3.7, z * 12.9) <= 0.985) return;
+  const mats = ['stone', 'mossy_cobble', 'gravel'];
+  for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+    const gx = x + dx, gz = z + dz, gh = heightAt(gx, gz);
+    const stack = dx === 0 && dz === 0 ? 2 : 1;     // taller in the middle
+    for (let i = 0; i < stack; i++)
+      placeBlock(key(gx, gh + 1 + i, gz), mats[Math.floor(rand(gx * 1.3 + i, gz * 2.1) * 3)]);
+  }
+}
+
+// small pond / desert oasis — carve a shallow bowl and fill with water
+function genPond(x, z) {
+  const R = 3;
+  // +3 inset = max tree-canopy reach: carved cells stay clear of the border where a
+  // neighbouring chunk's leaves can spill, so carve vs leaf can't depend on chunk order
+  if (!fitsInChunk(x, z, R + 3) || !flatGrass(x, z, R)) return;
+  if (rand(x * 5.3, z * 7.9) <= 0.99) return;
+  const desert = isDesert(x, z);
+  const water = heightAt(x, z) - 1;               // water surface just below ground
+  for (let dx = -R; dx <= R; dx++) for (let dz = -R; dz <= R; dz++) {
+    const d = Math.hypot(dx, dz); if (d > R + 0.4) continue;
+    const gx = x + dx, gz = z + dz, gh = heightAt(gx, gz);
+    const depth = d < 1 ? 2 : d < 2 ? 1 : 0;       // deepest in the middle
+    const floorY = water - depth;
+    for (let y = gh; y > floorY; y--) carveBlock(key(gx, y, gz));
+    placeBlock(key(gx, floorY, gz), 'sand');        // sandy bed
+    for (let y = floorY + 1; y <= water; y++) placeBlock(key(gx, y, gz), 'water');
+    if (desert && d > R - 1.2) placeBlock(key(gx, water + 1, gz), 'grass');  // green oasis ring
+  }
+}
+
+// old village well — cobble ring around a water shaft, posts + plank roof
+function buildWell(x, z) {
+  const base = heightAt(x, z);
+  for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) {
+    if (dx === 0 && dz === 0) { carveBlock(key(x, base, z)); placeBlock(key(x, base - 1, z), 'water'); continue; }
+    placeBlock(key(x + dx, base, z + dz), 'cobblestone');
+    placeBlock(key(x + dx, base + 1, z + dz), 'cobblestone');
+  }
+  for (const [cx, cz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]])
+    for (let i = 2; i <= 3; i++) placeBlock(key(x + cx, base + i, z + cz), 'log');
+  for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++)
+    placeBlock(key(x + dx, base + 4, z + dz), 'planks');
+}
+function genWell(x, z) {
+  if (!fitsInChunk(x, z, 4) || !flatGrass(x, z, 1)) return;   // carves the shaft → keep clear of leaf-spill border
+  if (rand(x * 8.7, z * 2.3) <= 0.9965) return;
+  buildWell(x, z);
+}
+
+// crumbling ruin — a partial mossy-cobble room, sometimes with loot
+function genRuin(x, z) {
+  const W = 2;
+  if (!fitsInChunk(x, z, W) || !flatGrass(x, z, W)) return;
+  if (rand(x * 4.9, z * 11.7) <= 0.993) return;
+  const h = heightAt(x, z), base = h + 1, ht = 3;
+  for (let dx = -W; dx <= W; dx++) for (let dz = -W; dz <= W; dz++) {
+    const onWall = Math.abs(dx) === W || Math.abs(dz) === W;
+    if (!onWall) { placeBlock(key(x + dx, h, z + dz), 'mossy_cobble'); continue; }   // floor
+    for (let dy = 0; dy < ht; dy++) {
+      if (rand((x + dx) * 3.1 + dy * 7, (z + dz) * 5.3 - dy * 3) < 0.3 + dy * 0.22) continue;  // crumbled
+      placeBlock(key(x + dx, base + dy, z + dz),
+        rand((x + dx) * 1.3, (z + dz) * 1.7) > 0.5 ? 'mossy_cobble' : 'cobblestone');
+    }
+  }
+  if (rand(x * 2.1, z * 9.3) > 0.7) placeBlock(key(x, base, z), 'chest');    // ~30% loot
+}
+
+// a furnished cottage (used standalone is rare; villages place several)
+function buildHouse(x, z) {
+  const W = 2, h = heightAt(x, z), base = h + 1, wallH = 3;
+  for (let dx = -W; dx <= W; dx++) for (let dz = -W; dz <= W; dz++) {
+    placeBlock(key(x + dx, h, z + dz), 'planks');                  // floor
+    for (let dy = 0; dy < wallH; dy++) {
+      const k = key(x + dx, base + dy, z + dz);
+      const wall = Math.abs(dx) === W || Math.abs(dz) === W;
+      if (!wall) { carveBlock(k); continue; }                       // hollow interior
+      const corner = Math.abs(dx) === W && Math.abs(dz) === W;
+      placeBlock(k, corner ? 'cobblestone' : 'planks');
+    }
+    placeBlock(key(x + dx, base + wallH, z + dz), 'planks');        // roof
+  }
+  placeBlock(key(x, base, z + W), 'door'); carveBlock(key(x, base + 1, z + W));  // doorway
+  placeBlock(key(x, base + 1, z - W), 'glass');                     // window
+  placeBlock(key(x - W + 1, base, z - W + 1), 'bed');
+  placeBlock(key(x + W - 1, base, z - W + 1), 'chest');
+  placeBlock(key(x + W - 1, base, z + W - 1), 'crafting');
+  placeBlock(key(x - W + 1, base + 1, z + W - 1), 'torch');
+}
+
+// a small crop plot with an irrigation block
+function buildFarm(x, z) {
+  const W = 2, h = heightAt(x, z);
+  for (let dx = -W; dx <= W; dx++) for (let dz = -W; dz <= W; dz++) {
+    placeBlock(key(x + dx, h, z + dz), 'dirt');
+    if (dx === 0 && dz === 0) { carveBlock(key(x, h, z)); placeBlock(key(x, h, z), 'water'); continue; }
+    if (rand((x + dx) * 2.3, (z + dz) * 3.7) > 0.5)
+      placeBlock(key(x + dx, h + 1, z + dz), rand((x + dx) * 1.1, (z + dz) * 1.9) > 0.6 ? 'pumpkin' : 'tall_grass');
+  }
+}
+
+// village ZONES via low-frequency noise. Inside a zone, houses/wells/farms drop
+// on a sparse grid (each still self-contained per chunk) and worn paths scatter,
+// so a settlement reads as a settlement without one anchor owning many chunks.
+function villageField(x, z) { return smooth2(x / 70 + 13, z / 70 - 27); }
+function genVillageBits(x, z) {
+  if (isDesert(x, z) || villageField(x, z) < 0.62) return;
+  if (!flatGrass(x, z, 2)) {
+    // worn dirt path on flat-ish ground inside the zone
+    if (fitsInChunk(x, z, 0) && world.get(key(x, heightAt(x, z), z)) === 'grass'
+        && rand(x * 7.7, z * 9.1) > 0.86) placeBlock(key(x, heightAt(x, z), z), 'path');
+    return;
+  }
+  if (fitsInChunk(x, z, 5) && rand(x * 1.9, z * 2.7) > 0.97) {   // inset 5 = footprint 2 + leaf reach 3 (carves stay off the border)
+    const r = rand(x * 5.1, z * 3.3);
+    if (r > 0.8) buildWell(x, z); else if (r > 0.55) buildFarm(x, z); else buildHouse(x, z);
+  } else if (rand(x * 7.7, z * 9.1) > 0.86) {
+    placeBlock(key(x, heightAt(x, z), z), 'path');
+  }
+}
+
+// underground dungeon — a hidden mossy room with a loot chest, deep below grass
+function genDungeon(x, z) {
+  if (!fitsInChunk(x, z, 6)) return;   // W=3 room + 3 inset for neighbour leaf reach (see genPond)
+  if (rand(x * 6.7, z * 4.3) <= 0.994) return;
+  const h = heightAt(x, z);
+  const fy = 4 + Math.floor(rand(x * 1.7, z * 2.9) * Math.max(1, h - 12));
+  if (fy < 2 || fy > h - 7) return;
+  const W = 3, H = 3;
+  for (let dx = -W; dx <= W; dx++) for (let dz = -W; dz <= W; dz++) for (let dy = 0; dy <= H; dy++) {
+    const k = key(x + dx, fy + dy, z + dz);
+    const shell = Math.abs(dx) === W || Math.abs(dz) === W || dy === 0 || dy === H;
+    if (shell) placeBlock(k, rand((x + dx) * 1.3 + dy, (z + dz) * 1.7) > 0.6 ? 'mossy_cobble' : 'cobblestone');
+    else carveBlock(k);
+  }
+  placeBlock(key(x, fy + 1, z), 'chest');
+  placeBlock(key(x - W + 1, fy + 1, z - W + 1), 'torch');
 }
 
 const MOON_CRATERS = [
@@ -902,9 +1359,16 @@ function genChunk(cx, cz) {
   // terrain
   for (let x = x0; x < x0 + CHUNK; x++)
     for (let z = z0; z < z0 + CHUNK; z++) genColumn(x, z);
-  // trees whose trunk lies in this chunk (leaves may spill into neighbours, owned by this chunk)
+  // terrain-shaping structures first (they carve into the columns above)
   for (let x = x0; x < x0 + CHUNK; x++)
-    for (let z = z0; z < z0 + CHUNK; z++) genTree(x, z);
+    for (let z = z0; z < z0 + CHUNK; z++) { genPond(x, z); genDungeon(x, z); }
+  // trees + freestanding structures (trees' leaves may spill into neighbours, owned here)
+  for (let x = x0; x < x0 + CHUNK; x++)
+    for (let z = z0; z < z0 + CHUNK; z++) {
+      genTree(x, z); genPine(x, z); genBoulder(x, z);
+      genWell(x, z); genRuin(x, z); genVillageBits(x, z);
+    }
+  // fine surface decoration last so it only fills genuinely empty grass
   for (let x = x0; x < x0 + CHUNK; x++)
     for (let z = z0; z < z0 + CHUNK; z++) genSurfaceBits(x, z);
   genStarterCamp(x0, z0);
@@ -934,10 +1398,11 @@ function genChunk(cx, cz) {
   genCur = null;
   chunkBlocks.set(ck, owned);
   loaded.add(ck);
-  // build this chunk's mesh, and rebuild already-loaded neighbours so shared faces update
+  // Build the new chunk immediately; neighbor seam updates are spread across later frames.
   buildChunkMesh(cx, cz);
   for (const [dx, dz] of [[1,0],[-1,0],[0,1],[0,-1]]) {
-    if (loaded.has(chunkKey(cx + dx, cz + dz))) buildChunkMesh(cx + dx, cz + dz);
+    const nk = chunkKey(cx + dx, cz + dz);
+    if (loaded.has(nk)) dirty.add(nk);
   }
 }
 
@@ -954,23 +1419,65 @@ function unloadChunk(cx, cz) {
   loaded.delete(ck);
 }
 
-function streamChunks(budget) {
+function rebuildChunkQueue(pcx, pcz) {
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  chunkLoadQueue = [];
+  for (let dx = -chunkRadius; dx <= chunkRadius; dx++)
+    for (let dz = -chunkRadius; dz <= chunkRadius; dz++) {
+      const cx = pcx + dx, cz = pcz + dz, ck = chunkKey(cx, cz);
+      if (loaded.has(ck)) continue;
+      const front = dx * dir.x + dz * dir.z;
+      chunkLoadQueue.push({ cx, cz, d: Math.max(Math.abs(dx), Math.abs(dz)), front });
+    }
+  chunkLoadQueue.sort((a, b) => a.d - b.d || b.front - a.front);
+  chunkQueueCenter = pcx + ',' + pcz;
+  chunkQueueRadius = chunkRadius;
+}
+
+function adaptChunkRadius(dt, frameDt) {
+  chunkAdaptT += dt;
+  if (chunkAdaptT < 4) return;
+  chunkAdaptT = 0;
+  if (fps > 56 && frameDt < 0.018 && dirty.size === 0 && chunkLoadQueue.length === 0) {
+    chunkRadius = Math.min(MAX_ADAPTIVE_CHUNK_RADIUS, chunkRadius + 1);
+  } else if (fps < 42 || frameDt > 0.032 || dirty.size > 16) {
+    chunkRadius = Math.max(BASE_CHUNK_RADIUS, chunkRadius - 1);
+  }
+}
+
+function updateChunkVisibility() {
   const p = controls.getObject().position;
   const [pcx, pcz] = chunkOf(p.x, p.z);
-  // load nearest-first within CHUNK_RADIUS, up to budget new chunks
-  let made = 0;
-  for (let r = 0; r <= CHUNK_RADIUS && made < budget; r++) {
-    for (let dx = -r; dx <= r && made < budget; dx++)
-      for (let dz = -r; dz <= r && made < budget; dz++) {
-        if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;  // ring only
-        const cx = pcx + dx, cz = pcz + dz;
-        if (!loaded.has(chunkKey(cx, cz))) { genChunk(cx, cz); made++; }
-      }
+  const visibleRadius = Math.min(chunkRadius + 1, Math.max(4, Math.ceil(scene.fog.far / CHUNK)));
+  const shadowRadius = SHADOW_QUALITY === 'low' ? -1 : 3;
+  for (const [ck, grp] of chunkMeshes) {
+    const [cx, cz] = ck.split(',').map(Number);
+    const d = Math.max(Math.abs(cx - pcx), Math.abs(cz - pcz));
+    grp.visible = d <= visibleRadius;
+    const casts = d <= shadowRadius;
+    for (const mesh of grp.children) if (mesh.userData.terrain) mesh.castShadow = casts && renderer.shadowMap.enabled;
   }
-  // unload chunks beyond CHUNK_RADIUS+2
+}
+
+function streamChunks(msBudget = 3) {
+  const p = controls.getObject().position;
+  const [pcx, pcz] = chunkOf(p.x, p.z);
+  if (chunkQueueCenter !== pcx + ',' + pcz || chunkQueueRadius !== chunkRadius || chunkLoadQueue.length === 0) rebuildChunkQueue(pcx, pcz);
+  const started = performance.now();
+  while (chunkLoadQueue.length && performance.now() - started < msBudget) {
+    const next = chunkLoadQueue.shift();
+    const ck = chunkKey(next.cx, next.cz);
+    if (loaded.has(ck)) continue;
+    const t0 = performance.now();
+    genChunk(next.cx, next.cz);
+    perfStats.chunkMs += performance.now() - t0;
+    perfStats.chunksGenerated++;
+  }
+  // unload chunks beyond the active radius plus a small hysteresis margin
   for (const ck of loaded) {
     const [cx, cz] = ck.split(',').map(Number);
-    if (Math.max(Math.abs(cx - pcx), Math.abs(cz - pcz)) > CHUNK_RADIUS + 2) unloadChunk(cx, cz);
+    if (Math.max(Math.abs(cx - pcx), Math.abs(cz - pcz)) > chunkRadius + 2) unloadChunk(cx, cz);
   }
 }
 
@@ -1088,6 +1595,7 @@ function placeTargets(count = 1) {
 const pGeo = new THREE.BoxGeometry(0.14, 0.14, 0.14);
 const pMatCache = new Map();
 const particles = [];
+const particlePool = [];
 function colorMat(hex) {
   if (!pMatCache.has(hex)) pMatCache.set(hex, new THREE.MeshLambertMaterial({ color: hex }));
   return pMatCache.get(hex);
@@ -1095,8 +1603,10 @@ function colorMat(hex) {
 function spawnParticles(cx, cy, cz, hex, n) {
   if (particles.length > 220) return;
   for (let i = 0; i < n; i++) {
-    const m = new THREE.Mesh(pGeo, colorMat(hex));
+    const m = particlePool.pop() || new THREE.Mesh(pGeo, colorMat(hex));
+    m.material = colorMat(hex);
     m.position.set(cx + Math.random(), cy + Math.random(), cz + Math.random());
+    m.scale.set(1, 1, 1);
     scene.add(m);
     particles.push({ m, vx: (Math.random() - 0.5) * 4, vy: 3 + Math.random() * 3, vz: (Math.random() - 0.5) * 4, life: 0.6 + Math.random() * 0.3 });
   }
@@ -1113,7 +1623,7 @@ function updateParticles(dt) {
     p.life -= dt;
     const s = Math.max(0.01, p.life * 1.6);
     p.m.scale.set(s, s, s);
-    if (p.life <= 0) { scene.remove(p.m); particles.splice(i, 1); }
+    if (p.life <= 0) { scene.remove(p.m); particlePool.push(p.m); particles.splice(i, 1); }
   }
 }
 
@@ -1282,10 +1792,12 @@ const studentList = document.getElementById('studentList');
 const teleportAllBtn = document.getElementById('teleportAll');
 const resetWorldBtn = document.getElementById('resetWorld');
 const mpStatus = document.getElementById('mpStatus');
+const leaderboardEl = document.getElementById('leaderboard');
+const leaderboardBodyEl = document.getElementById('leaderboardBody');
 let menuOpen = false;
 let invOpen = false;     // survival inventory/crafting screen open
 let trackpadMode = false;
-let lastPointer = null;
+let cursorUIMode = false;
 let promptFlash = 0, contextPrompt = '', scaleTuneT = 0;
 let partyModeT = 0;
 const autoToggleQueue = [];
@@ -1294,20 +1806,25 @@ overlay.addEventListener('click', () => { if (joinEl.classList.contains('hidden'
 controls.addEventListener('lock', () => overlay.classList.add('hidden'));
 controls.addEventListener('unlock', () => {
   if (!trackpadMode) velocity.set(0, 0, 0);
-  if (!menuOpen && !invOpen && !furnaceOpen && !chestOpen && !chatOpen && !dead && !trackpadMode) overlay.classList.remove('hidden');
 });
 
 function setTrackpadMode(on) {
   trackpadMode = on;
-  lastPointer = null;
+  cursorUIMode = false;
   velocity.set(0, 0, 0);
   if (on) {
-    if (controls.isLocked) controls.unlock();
     overlay.classList.add('hidden');
-    renderer.domElement.focus();
-  } else if (!controls.isLocked && !menuOpen && !dead) {
-    overlay.classList.remove('hidden');
+    renderer.domElement.style.cursor = 'none';
+    controls.lock();
+  } else {
+    renderer.domElement.style.cursor = '';
+    if (!controls.isLocked) controls.lock();
   }
+}
+function setCursorUIMode(on) {
+  cursorUIMode = on;
+  renderer.domElement.style.cursor = on ? 'default' : 'none';
+  if (on) controls.unlock(); else controls.lock();
 }
 function setPrompt(text, ttl = 0) {
   if (ttl > 0) promptFlash = ttl;
@@ -1337,6 +1854,7 @@ function tossHotbarItem(all = false) {
     tryRestockSlot(currentSlot, oldId);
   }
   paintSlot(currentSlot);
+  markSaveDirty();
   setPrompt(all ? `Dropped ${itemName(id)} stack` : `Dropped ${itemName(id)}`, 0.9);
   return true;
 }
@@ -1352,17 +1870,6 @@ function updatePrompt(dt) {
     promptEl.style.display = 'none';
   }
 }
-renderer.domElement.addEventListener('pointermove', (e) => {
-  if (!trackpadMode || controls.isLocked || menuOpen || dead) return;
-  if (lastPointer) {
-    const dx = e.clientX - lastPointer.x, dy = e.clientY - lastPointer.y;
-    yaw -= dx * 0.0032;
-    pitch -= dy * 0.0032;
-    pitch = Math.max(-1.5, Math.min(1.5, pitch));
-  }
-  lastPointer = { x: e.clientX, y: e.clientY };
-});
-renderer.domElement.addEventListener('pointerleave', () => { lastPointer = null; });
 renderer.domElement.addEventListener('pointerdown', () => renderer.domElement.focus());
 
 const keys = {};
@@ -1376,7 +1883,11 @@ addEventListener('keydown', (e) => {
   if (e.code === 'Space') jumpBufferT = 0.14;
   keys[e.code] = true;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Tab'].includes(e.code)) e.preventDefault();
-  if (e.code === 'Tab') { setTrackpadMode(!trackpadMode); return; }
+  if (e.code === 'Tab') {
+    if (trackpadMode) { setCursorUIMode(!cursorUIMode); }
+    else { setTrackpadMode(true); }
+    return;
+  }
   if (e.code === 'KeyE') {
     e.preventDefault();
     if (gameMode === 'creative') { toggleMenu(); return; }
@@ -1406,12 +1917,15 @@ addEventListener('keydown', (e) => {
     return;
   }
   if (e.code === 'KeyB') { togglePartyMode(); return; }
+  if (e.code === 'KeyL' && MULTIPLAYER && multiplayerJoined) { leaderboardEl.classList.toggle('hidden'); return; }
+  if (e.code === 'KeyZ' && controlsActive() && !invOpen && !furnaceOpen && !chestOpen) { e.preventDefault(); giftItem(); return; }
   if (e.code === 'KeyP' && controlsActive()) { localStorage.removeItem('mc_save_v1'); location.reload(); }
   if (e.code.startsWith('Digit')) { const n = +e.code.slice(5) - 1; if (n >= 0 && n < 9) selectSlot(n); }
 });
 
 function setMode(m) {
   gameMode = m;
+  markSaveDirty();
   if (m === 'survival') {
     flying = false; health = MAX_HP; hunger = MAX_HUNGER;
     hungerTick = 0; starveTick = 0; regenTimer = 0;
@@ -1492,6 +2006,7 @@ function arrowLook(dt) {
 
 // ---- player damage / death ----
 function updateHearts() {
+  markSaveDirty();
   let s = '';
   for (let i = 0; i < 10; i++) {
     const v = health - i * 2;
@@ -1501,6 +2016,7 @@ function updateHearts() {
   heartsEl.innerHTML = s;
 }
 function updateHunger() {
+  markSaveDirty();
   let s = '';
   for (let i = 0; i < 10; i++) {
     const v = hunger - i * 2;
@@ -1534,6 +2050,7 @@ function eatFood(itemId) {
         tryRestockSlot(currentSlot, oldId);
       }
       paintSlot(currentSlot);
+      markSaveDirty();
     }
   }
   spawnParticles(
@@ -1552,6 +2069,7 @@ function eatFood(itemId) {
 function damagePlayer(dmg) {
   if (gameMode !== 'survival' || dead) return;
   health -= dmg; lastHurt = clock; hurtFlash = 0.55; updateHearts();
+  markSaveDirty();
   if (health <= 0) die();
 }
 function hurtByMob(dmg, fromPos) {
@@ -1609,172 +2127,882 @@ const HOSTILE_KINDS = [
   { name: 'Alien',   body: 0x57c08a, head: 0x8df0bd, leg: 0x2f7d5a, hp: 14, speed: 2.8, dmg: 4, detect: 18, shape: 'alien',   hostile: true, weight: 0.7 },
 ];
 const BIRD_KIND = { name: 'Bird', body: 0x4a86e0, head: 0x3f73c4, leg: 0xf2a23a, hp: 4, speed: 9, shape: 'bird', fly: true };
+// Arena-only boss. Deliberately kept out of PASSIVE/HOSTILE_KINDS (and so out of
+// the natural spawn tables and SPAWN_EGGS) — it only exists when the teacher
+// summons it in the arena. Registered in KIND_BY_NAME so net-mob rendering finds it.
+const COLOSSUS_KIND = { name: 'Colossus', body: 0x39222e, head: 0x4a2218, leg: 0x241019, hp: 750, speed: 3.2, dmg: 10, detect: 24, shape: 'colossus', hostile: true };
+
+// populate SPAWN_EGGS now that mob kind arrays exist
+for (const k of [...PASSIVE_KINDS, ...HOSTILE_KINDS, BIRD_KIND]) {
+  const id = 'egg_' + k.name.toLowerCase().replace(/ /g, '_');
+  SPAWN_EGGS[id] = { name: k.name + ' Egg', color: k.body, kind: k };
+}
+
 const mobs = [];
 const mobGroups = [];
+const mobGeometryCache = new Map();
+const mobMaterialCache = new Map();
 
 function box(w, h, d, color, x, y, z) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ color }));
+  const gk = w + ',' + h + ',' + d;
+  let geo = mobGeometryCache.get(gk);
+  if (!geo) { geo = new THREE.BoxGeometry(w, h, d); mobGeometryCache.set(gk, geo); }
+  let mat = mobMaterialCache.get(color);
+  if (!mat) { mat = new THREE.MeshLambertMaterial({ color }); mobMaterialCache.set(color, mat); }
+  const m = new THREE.Mesh(geo, mat);
   m.position.set(x, y, z);
+  m.userData.dim = { w, h, d };
   return m;
+}
+// tag legs so animateWalk() can swing them: a part in leg-color whose tallest
+// dimension is its height and that sits low on the body (excludes tails, wide
+// rims, sprawled/horizontal legs, which read badly when swung front-to-back)
+function tagWalkLimbs(parts, k) {
+  for (const p of parts) {
+    const d = p.userData.dim;
+    if (!d || p.material.color.getHex() !== k.leg) continue;
+    if (d.h < d.w || d.h < d.d || p.position.y > 1.4) continue;
+    const sx = Math.sign(p.position.x) || 1;
+    const sz = Math.sign(p.position.z) || sx;
+    p.userData.limb = { baseY: p.position.y, baseZ: p.position.z, half: d.h / 2,
+                        phase: sx === sz ? 0 : Math.PI };   // diagonal gait
+  }
 }
 function buildBody(k) {
   const g = new THREE.Group(); let parts;
   if (k.shape === 'biped') {
-    parts = [
-      box(0.6, 0.9, 0.35, k.body, 0, 0.95, 0),
-      box(0.5, 0.5, 0.5, k.head, 0, 1.65, 0),
-      box(0.22, 0.7, 0.22, k.body, 0.4, 0.95, 0),   // arms
-      box(0.22, 0.7, 0.22, k.body, -0.4, 0.95, 0),
-      box(0.24, 0.55, 0.24, k.leg, 0.16, 0.28, 0),  // legs
-      box(0.24, 0.55, 0.24, k.leg, -0.16, 0.28, 0),
-    ];
+    // 16x16 nearest-filter pixel texture helper (inline, biped-local)
+    const px = (draw) => {
+      const c = document.createElement('canvas'); c.width = c.height = 16;
+      const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
+      draw(g2);
+      const t = new THREE.CanvasTexture(c);
+      t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+      return t;
+    };
+    if (k.name === 'Penguin') {
+      // stubby, cute penguin: rounded black body, white belly, orange beak/feet
+      parts = [
+        box(0.62, 0.95, 0.5, k.body, 0, 0.78, 0),          // rounded body
+        box(0.46, 0.66, 0.12, k.head, 0, 0.74, 0.25),       // white belly patch
+        box(0.5, 0.48, 0.5, k.body, 0, 1.5, 0),             // head
+        box(0.13, 0.15, 0.06, 0xffffff, 0.12, 1.56, 0.25),  // white eye backs
+        box(0.13, 0.15, 0.06, 0xffffff, -0.12, 1.56, 0.25),
+        box(0.06, 0.08, 0.06, 0x101010, 0.12, 1.55, 0.29),  // pupils
+        box(0.06, 0.08, 0.06, 0x101010, -0.12, 1.55, 0.29),
+        box(0.18, 0.13, 0.2, k.leg, 0, 1.44, 0.3),          // orange beak
+        box(0.1, 0.55, 0.3, k.body, 0.35, 0.86, 0),         // flippers
+        box(0.1, 0.55, 0.3, k.body, -0.35, 0.86, 0),
+        box(0.18, 0.26, 0.2, k.leg, 0.14, 0.15, 0.02),      // stubby legs (waddle)
+        box(0.18, 0.26, 0.2, k.leg, -0.14, 0.15, 0.02),
+        box(0.22, 0.1, 0.32, k.leg, 0.14, 0.05, 0.16),      // flat feet
+        box(0.22, 0.1, 0.32, k.leg, -0.14, 0.05, 0.16),
+      ];
+      parts[2].userData.headBob = 0.02;
+      parts[8].userData.sway = 0.15; parts[9].userData.sway = 0.15;  // flipper flap
+    } else {
+      // classic zombie: two-tone green skin, textured face, torn clothing
+      const skin = k.head, arm = 0x357033;
+      const faceTex = px((g2) => {
+        g2.fillStyle = '#6b8f5a'; g2.fillRect(0, 0, 16, 16);          // mottled skin
+        g2.fillStyle = '#4f6f42';
+        g2.fillRect(2, 2, 2, 2); g2.fillRect(11, 3, 2, 2);
+        g2.fillRect(4, 10, 3, 2); g2.fillRect(9, 9, 2, 2); g2.fillRect(13, 12, 2, 1);
+        g2.fillStyle = '#1c2a18'; g2.fillRect(3, 6, 4, 3); g2.fillRect(9, 6, 4, 3); // eye sockets
+        g2.fillStyle = '#0a1206'; g2.fillRect(4, 7, 2, 2); g2.fillRect(10, 7, 2, 2); // hollow eyes
+        g2.fillStyle = '#243018'; g2.fillRect(4, 12, 8, 1);           // straight mouth
+        g2.fillRect(6, 11, 1, 3); g2.fillRect(9, 11, 1, 3);          // mouth stitches
+      });
+      const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5),
+        new THREE.MeshLambertMaterial({ map: faceTex }));
+      head.position.set(0, 1.65, 0); head.userData.headBob = 0.02;
+      parts = [
+        box(0.6, 0.9, 0.35, k.body, 0, 0.95, 0),            // torso
+        box(0.64, 0.2, 0.37, 0x24521f, 0, 1.18, 0),         // darker chest band (torn)
+        box(0.62, 0.26, 0.37, 0x2b5f26, 0, 0.62, 0),        // torn shirt hem
+        box(0.22, 0.7, 0.22, arm, 0.4, 0.95, 0),            // outstretched arms
+        box(0.22, 0.7, 0.22, arm, -0.4, 0.95, 0),
+        box(0.2, 0.18, 0.22, skin, 0.4, 0.57, 0.02),        // hands
+        box(0.2, 0.18, 0.22, skin, -0.4, 0.57, 0.02),
+        box(0.24, 0.55, 0.24, k.leg, 0.16, 0.28, 0),        // legs
+        box(0.24, 0.55, 0.24, k.leg, -0.16, 0.28, 0),
+        head,
+      ];
+      parts[3].userData.sway = 0.05; parts[4].userData.sway = 0.05;  // subtle stiff sway
+    }
   } else if (k.shape === 'spider') {
+    // 16x16 nearest-filter helper for the fuzzy, mottled abdomen skin
+    const px = (draw) => {
+      const c = document.createElement('canvas'); c.width = c.height = 16;
+      const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
+      draw(g2);
+      const t = new THREE.CanvasTexture(c);
+      t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+      return t;
+    };
+    const hex = (n) => '#' + n.toString(16).padStart(6, '0');
+    const bodyTex = px((g2) => {
+      g2.fillStyle = hex(k.body); g2.fillRect(0, 0, 16, 16);
+      // darker mottled fuzz + a couple of lighter flecks
+      const dark = hex(k.leg), fleck = hex(k.head);
+      const seed = [[2,3],[5,1],[9,4],[13,2],[1,7],[6,6],[11,8],[14,10],
+                    [3,11],[8,12],[12,13],[4,14],[10,5],[7,9],[15,6],[0,12]];
+      g2.fillStyle = dark;
+      for (const [x, y] of seed) { g2.fillRect(x, y, 1, 1); g2.fillRect((x + 5) % 16, (y + 6) % 16, 1, 1); }
+      g2.fillStyle = fleck;
+      g2.fillRect(4, 4, 2, 1); g2.fillRect(10, 11, 1, 2); g2.fillRect(7, 2, 1, 1);
+    });
+    const texMesh = (w, h, d, tex, x, y, z) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
+        new THREE.MeshLambertMaterial({ map: tex }));
+      m.position.set(x, y, z);
+      return m;
+    };
     parts = [
-      box(0.9, 0.45, 1.1, k.body, 0, 0.45, 0),
-      box(0.5, 0.4, 0.5, k.head, 0, 0.45, 0.7),
-      box(0.9, 0.12, 0.12, k.leg, 0.7, 0.45, 0.2),
-      box(0.9, 0.12, 0.12, k.leg, -0.7, 0.45, 0.2),
-      box(0.9, 0.12, 0.12, k.leg, 0.7, 0.45, -0.2),
-      box(0.9, 0.12, 0.12, k.leg, -0.7, 0.45, -0.2),
+      // fuzzy rear abdomen (large) + front cephalothorax
+      texMesh(0.95, 0.6, 1.0, bodyTex, 0, 0.5, -0.35),
+      box(0.6, 0.45, 0.6, k.head, 0, 0.45, 0.55),
     ];
+    // 8 jointed legs: 4 per side, spread front-to-back; each = upper segment
+    // slanting up/out + lower segment dropping to the ground
+    const legZ = [0.55, 0.2, -0.2, -0.55];
+    for (const side of [1, -1]) {
+      for (const z of legZ) {
+        const upper = box(0.55, 0.11, 0.11, k.leg, side * 0.62, 0.62, z);
+        upper.rotation.z = side * -0.5;                  // outer end lifted
+        upper.userData.sway = 0.12;
+        const lower = box(0.11, 0.5, 0.11, k.leg, side * 0.92, 0.28, z);
+        lower.rotation.z = side * -0.18;                 // knee drop to ground
+        lower.userData.sway = 0.12;
+        parts.push(upper, lower);
+      }
+    }
+    // cluster of small red glowing eyes on the cephalothorax. Coloured red and
+    // self-lit here (this build has no userData.glow pass); the userData.glow
+    // tag is kept so a future glow framework can drive them too.
+    for (const [ex, ey] of [[0.16, 0.6], [-0.16, 0.6], [0.09, 0.5], [-0.09, 0.5]]) {
+      const eye = box(0.09, 0.09, 0.06, 0xff0000, ex, ey, 0.86);
+      eye.material.emissive.setHex(0xff0000);
+      eye.userData.glow = 0xff0000;
+      parts.push(eye);
+    }
+    // fangs / mandibles
+    parts.push(box(0.08, 0.14, 0.1, k.leg, 0.1, 0.34, 0.85));
+    parts.push(box(0.08, 0.14, 0.1, k.leg, -0.1, 0.34, 0.85));
   } else if (k.shape === 'creeper') {
+    // inline 16x16 pixel-texture helper (NearestFilter, crisp Minecraft look)
+    const hex = (n) => '#' + n.toString(16).padStart(6, '0');
+    const px = (draw) => {
+      const c = document.createElement('canvas'); c.width = c.height = 16;
+      const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
+      draw(g2);
+      const t = new THREE.CanvasTexture(c);
+      t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+      return t;
+    };
+    // mottled two-tone green camouflage wrapped around the whole torso
+    const bodyTex = px((g2) => {
+      g2.fillStyle = hex(k.body); g2.fillRect(0, 0, 16, 16);
+      g2.fillStyle = hex(0x3d7a2b);   // lighter dapple
+      for (const [x, y] of [[2, 1], [10, 2], [5, 6], [13, 7], [1, 9], [8, 11], [4, 13], [12, 12], [6, 3], [11, 5]])
+        g2.fillRect(x, y, 3, 2);
+      g2.fillStyle = hex(0x2f5f25);   // darker dapple
+      for (const [x, y] of [[3, 4], [9, 8], [13, 3], [1, 13], [7, 14], [14, 10]])
+        g2.fillRect(x, y, 2, 2);
+    });
+    // the iconic creeper face: two square eyes + frowning mouth with down-prongs
+    const faceTex = px((g2) => {
+      g2.fillStyle = hex(k.head); g2.fillRect(0, 0, 16, 16);
+      g2.fillStyle = '#0b160a';       // near-black dark green
+      const cells = [
+        [1, 1], [1, 2], [2, 1], [2, 2], [1, 5], [1, 6], [2, 5], [2, 6],   // eyes
+        [3, 3], [3, 4], [4, 2], [4, 3], [4, 4], [4, 5], [5, 2], [5, 5], [6, 2], [6, 5], // mouth
+      ];
+      for (const [r, c] of cells) g2.fillRect(c * 2, r * 2, 2, 2);
+    });
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.55, 1.1, 0.35),
+      new THREE.MeshLambertMaterial({ map: bodyTex }));
+    body.position.set(0, 0.95, 0); body.userData.dim = { w: 0.55, h: 1.1, d: 0.35 };
+    const face = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.02),
+      new THREE.MeshLambertMaterial({ map: faceTex }));
+    face.position.set(0, 1.65, 0.26); face.userData.dim = { w: 0.5, h: 0.5, d: 0.02 };
     parts = [
-      box(0.55, 1.1, 0.35, k.body, 0, 0.95, 0),         // tall body
-      box(0.5, 0.5, 0.5, k.head, 0, 1.65, 0),            // head
+      body,                                              // camo torso
+      box(0.5, 0.5, 0.5, k.head, 0, 1.65, 0),            // plain green head
+      face,                                              // face plate on head front (+Z)
       box(0.24, 0.42, 0.3, k.leg, 0.16, 0.21, 0.28),     // 4 stubby feet
       box(0.24, 0.42, 0.3, k.leg, -0.16, 0.21, 0.28),
       box(0.24, 0.42, 0.3, k.leg, 0.16, 0.21, -0.28),
       box(0.24, 0.42, 0.3, k.leg, -0.16, 0.21, -0.28),
     ];
   } else if (k.shape === 'hydra') {
+    // inline pixel-texture helper (16x16, NearestFilter) — reptilian scales
+    const px = (draw) => {
+      const c = document.createElement('canvas'); c.width = c.height = 16;
+      const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
+      draw(g2);
+      const t = new THREE.CanvasTexture(c);
+      t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+      return t;
+    };
+    const hx = n => '#' + n.toString(16).padStart(6, '0');
+    const scaleTex = px(g2 => {                          // staggered scale rows
+      g2.fillStyle = hx(k.body); g2.fillRect(0, 0, 16, 16);
+      for (let y = 0; y < 16; y += 4) {
+        const off = ((y / 4) % 2) ? 2 : 0;
+        for (let x = -2; x < 16; x += 4) {
+          const sx = x + off;
+          g2.fillStyle = hx(k.leg);  g2.fillRect(sx, y + 3, 4, 1);   // dark scale rim
+          g2.fillStyle = '#5fbf85';  g2.fillRect(sx + 1, y, 2, 1);   // top highlight
+        }
+      }
+    });
+    const bodyMesh = new THREE.Mesh(new THREE.BoxGeometry(1.5, 1.3, 2.4),
+                                    new THREE.MeshLambertMaterial({ map: scaleTex }));
+    bodyMesh.position.set(0, 1.05, 0);
+    bodyMesh.userData.dim = { w: 1.5, h: 1.3, d: 2.4 };
+    const tail = box(0.5, 0.4, 1.2, k.body, 0, 1.2, -1.5);         // tail (weaves)
+    tail.userData.sway = 0.18;
     parts = [
-      box(1.5, 1.3, 2.4, k.body, 0, 1.05, 0),            // bulky body
+      bodyMesh,                                          // scaled bulky body
       box(0.45, 0.55, 0.45, k.leg, 0.55, 0.32, 0.8),     // 4 thick legs
       box(0.45, 0.55, 0.45, k.leg, -0.55, 0.32, 0.8),
       box(0.45, 0.55, 0.45, k.leg, 0.55, 0.32, -0.8),
       box(0.45, 0.55, 0.45, k.leg, -0.55, 0.32, -0.8),
-      box(0.5, 0.4, 1.2, k.body, 0, 1.2, -1.5),          // tail
+      tail,
     ];
-    for (const [nx, lean] of [[0, 0], [0.55, 0.18], [-0.55, -0.18]]) { // 3 necks + heads
-      parts.push(box(0.32, 1.1, 0.32, k.body, nx, 2.0, 1.0 + lean));
-      parts.push(box(0.6, 0.55, 0.8, k.head, nx, 2.65, 1.35 + lean));
+    // darker back-ridge spikes running down the spine and tail
+    for (const [sz, sy, sh] of [[0.8, 1.9, 0.4], [0.35, 1.92, 0.44], [-0.1, 1.9, 0.4],
+                                [-0.55, 1.85, 0.36], [-1.05, 1.6, 0.3], [-1.55, 1.55, 0.28], [-2.0, 1.5, 0.24]]) {
+      parts.push(box(0.16, sh, 0.22, k.leg, 0, sy, sz));
+    }
+    for (const [nx, lean, i] of [[0, 0, 0], [0.55, 0.18, 1], [-0.55, -0.18, 2]]) { // 3 snarling heads
+      const hz = 1.35 + lean, s = i === 0 ? 1.1 : 1.0;   // center head a touch bigger
+      const neck = box(0.32, 1.1, 0.32, k.body, nx, 2.0, 1.0 + lean);
+      neck.userData.sway = 0.12;                         // heads weave (phase from position)
+      const head = box(0.6 * s, 0.55 * s, 0.8 * s, k.head, nx, 2.65, hz);
+      const snout = box(0.4 * s, 0.32 * s, 0.4, k.head, nx, 2.55, hz + 0.55);
+      const teeth = box(0.4 * s, 0.08, 0.06, 0xffffff, nx, 2.42, hz + 0.7);   // white teeth
+      const eyeL = box(0.13, 0.13, 0.08, 0x8dff5a, nx + 0.17, 2.8, hz + 0.42);
+      const eyeR = box(0.13, 0.13, 0.08, 0x8dff5a, nx - 0.17, 2.8, hz + 0.42);
+      eyeL.material.emissive.setHex(0x8dff5a); eyeR.material.emissive.setHex(0x8dff5a);  // glow
+      eyeL.userData.glow = eyeR.userData.glow = 0x8dff5a;   // venom-green glowing eyes
+      parts.push(neck, head, snout, teeth, eyeL, eyeR);
     }
   } else if (k.shape === 'dragon') {
+    // inline pixel-texture helper (shared convention): 16x16, NearestFilter
+    const px = (draw) => {
+      const c = document.createElement('canvas'); c.width = c.height = 16;
+      const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
+      draw(g2);
+      const t = new THREE.CanvasTexture(c);
+      t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+      return t;
+    };
+    // scaly two-tone hide
+    const hideTex = px((g2) => {
+      g2.fillStyle = '#3a1f36'; g2.fillRect(0, 0, 16, 16);
+      for (let y = 0; y < 16; y += 4) for (let x = 0; x < 16; x += 4) {
+        g2.fillStyle = (((x + y) / 4) % 2) ? '#301829' : '#48284a';
+        g2.fillRect(x + ((y / 4) % 2 ? 2 : 0), y, 4, 3);
+      }
+      g2.fillStyle = '#1c0d18';               // dark scale outlines
+      for (let i = 0; i < 16; i += 4) g2.fillRect(0, i + 3, 16, 1);
+    });
+    // wing membrane with darker finger veins
+    const memTex = px((g2) => {
+      g2.fillStyle = '#3d2240'; g2.fillRect(0, 0, 16, 16);
+      g2.fillStyle = '#251320';
+      for (let i = 1; i < 16; i += 4) g2.fillRect(i, 0, 1, 16);   // veins
+      g2.fillRect(0, 15, 16, 1);                                   // trailing edge
+    });
+    const tex = (w, h, d, t, x, y, z) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
+        new THREE.MeshLambertMaterial({ map: t }));
+      m.position.set(x, y, z); m.userData.dim = { w, h, d };
+      return m;
+    };
+    const tail = tex(0.45, 0.5, 1.7, hideTex, 0, 0.15, -2.0);
+    tail.userData.sway = 0.2;                                      // sinuous tail
     parts = [
-      box(1.2, 1.0, 2.6, k.body, 0, 0, 0),                // body
-      box(0.45, 0.5, 1.7, k.body, 0, 0.15, -2.0),         // tail
-      box(0.42, 0.5, 1.3, k.body, 0, 0.45, 1.45),         // neck
-      box(0.75, 0.6, 0.95, k.head, 0, 0.75, 2.35),        // head
-      box(0.16, 0.4, 0.16, k.head, 0.24, 1.1, 2.5),       // horns
-      box(0.16, 0.4, 0.16, k.head, -0.24, 1.1, 2.5),
-      box(0.32, 0.5, 0.32, k.leg, 0.55, -0.7, 0.5),       // legs
+      tex(1.2, 1.0, 2.6, hideTex, 0, 0, 0),                       // body
+      tail,
+      tex(0.5, 0.55, 0.15, hideTex, 0, 0.35, -2.95),             // tail-tip fin
+      tex(0.42, 0.5, 1.3, hideTex, 0, 0.45, 1.45),               // neck
+      tex(0.75, 0.6, 0.95, hideTex, 0, 0.75, 2.35),              // head
+      box(0.55, 0.42, 0.55, k.head, 0, 0.62, 2.95),              // snout
+      box(0.09, 0.4, 0.12, k.leg, 0.26, 1.12, 2.2),              // horns (swept, dark)
+      box(0.09, 0.4, 0.12, k.leg, -0.26, 1.12, 2.2),
+      box(0.09, 0.28, 0.1, k.leg, 0.24, 1.32, 1.95),             // horn tips
+      box(0.09, 0.28, 0.1, k.leg, -0.24, 1.32, 1.95),
+      box(0.32, 0.5, 0.32, k.leg, 0.55, -0.7, 0.5),              // legs
       box(0.32, 0.5, 0.32, k.leg, -0.55, -0.7, 0.5),
       box(0.32, 0.5, 0.32, k.leg, 0.55, -0.7, -0.7),
       box(0.32, 0.5, 0.32, k.leg, -0.55, -0.7, -0.7),
     ];
-    const wingL = box(2.6, 0.1, 1.5, k.head, 1.7, 0.45, 0);   // bat wings
-    const wingR = box(2.6, 0.1, 1.5, k.head, -1.7, 0.45, 0);
-    wingL.userData.wing = 1; wingR.userData.wing = -1;
-    parts.push(wingL, wingR);
-  } else if (k.shape === 'iguana') {
+    // glowing eyes (plain boxes so the glow-pass/setEmissive self-lights them)
+    const eyeL = box(0.14, 0.12, 0.1, k.head, 0.26, 0.92, 2.78);
+    const eyeR = box(0.14, 0.12, 0.1, k.head, -0.26, 0.92, 2.78);
+    eyeL.userData.glow = eyeR.userData.glow = 0xc040ff;
+    parts.push(eyeL, eyeR);
+    // teeth along the snout underside
+    for (const tx of [-0.16, -0.05, 0.05, 0.16]) {
+      parts.push(box(0.06, 0.13, 0.06, 0xf4f0ff, tx, 0.44, 3.1));
+    }
+    // spined back ridge (body -> tail)
+    for (const sz of [0.9, 0.4, -0.1, -0.6, -1.1, -1.6, -2.1, -2.6]) {
+      const h = 0.34 - Math.max(0, -sz) * 0.05;
+      parts.push(box(0.1, h, 0.24, k.leg, 0, 0.5 + h / 2 - 0.05 + (sz < -1 ? -0.35 : 0), sz));
+    }
+    // membrane wings: main membrane + darker finger struts, all tagged wing so
+    // the whole wing flaps rigidly (updateFlyer rotates every userData.wing part)
+    for (const s of [1, -1]) {
+      const mem = tex(2.6, 0.1, 1.5, memTex, s * 1.7, 0.45, 0);
+      mem.userData.wing = s;
+      parts.push(mem);
+      const edge = box(2.8, 0.14, 0.14, k.leg, s * 1.4, 0.55, 0.7);  // leading arm bone
+      edge.userData.wing = s;
+      parts.push(edge);
+      for (const fx of [0.7, 1.9, 2.7]) {                            // finger struts
+        const f = box(0.12, 0.12, 1.45, k.leg, s * fx, 0.5, 0);
+        f.userData.wing = s;
+        parts.push(f);
+      }
+    }
+  } else if (k.shape === 'colossus') {
+    // molten stone golem: cracked dark-rock crust with glowing lava seams.
+    // inline pixel-texture helper (shared convention: 16x16, NearestFilter)
+    const px = (draw) => {
+      const c = document.createElement('canvas'); c.width = c.height = 16;
+      const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
+      draw(g2);
+      const t = new THREE.CanvasTexture(c);
+      t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+      return t;
+    };
+    const toHex = (n) => '#' + n.toString(16).padStart(6, '0');
+    // dark rock near k.body, darker cooled-crust patches, bright orange lava cracks
+    const rockTex = px((g2) => {
+      g2.fillStyle = toHex(k.body); g2.fillRect(0, 0, 16, 16);
+      g2.fillStyle = toHex(k.leg);                                // cooled crust
+      for (const [x, y, w, h] of [[1,2,4,3],[10,1,4,4],[3,9,5,4],[11,10,4,5],[6,13,3,2]])
+        g2.fillRect(x, y, w, h);
+      g2.fillStyle = '#ff6a1a';                                   // molten seams
+      for (const [x, y, w, h] of [[0,6,16,1],[7,0,1,7],[7,8,1,8],[2,11,6,1],[10,3,1,6]])
+        g2.fillRect(x, y, w, h);
+      g2.fillStyle = '#ffd23a';                                   // hot highlights
+      for (const [x, y] of [[7,6],[9,3],[4,11],[0,6],[7,12]]) g2.fillRect(x, y, 1, 1);
+    });
+    const rock = (w, h, d, x, y, z) => {                          // textured crust box
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
+        new THREE.MeshLambertMaterial({ map: rockTex }));
+      m.position.set(x, y, z); m.userData.dim = { w, h, d }; return m;
+    };
+    const torso = rock(2.0, 1.7, 1.3, 0, 2.15, 0);               // cracked-rock torso
+    const armL = rock(0.7, 2.0, 0.8, 1.25, 2.0, 0);              // massive arms
+    const armR = rock(0.7, 2.0, 0.8, -1.25, 2.0, 0);
+    const head = rock(1.2, 0.9, 1.0, 0, 3.45, 0.05);            // blocky head
+    head.userData.headBob = 0.03;                                // heavy, minimal sway
+    // glow parts stay plain boxes so their .emissive is settable (glow-pass/setEmissive)
+    const core = box(1.0, 1.0, 0.5, 0xff6a1a, 0, 2.2, 0.72);     // chest furnace
+    core.userData.glow = 0xff6a1a;
+    const eyeL = box(0.26, 0.16, 0.12, 0xffe26a, 0.32, 3.5, 0.58);
+    const eyeR = box(0.26, 0.16, 0.12, 0xffe26a, -0.32, 3.5, 0.58);
+    eyeL.userData.glow = eyeR.userData.glow = 0xffe26a;
     parts = [
-      box(0.35, 0.3, 1.0, k.body, 0, 0.3, 0),         // long low body
-      box(0.3, 0.28, 0.35, k.head, 0, 0.32, 0.62),     // head
-      box(0.06, 0.18, 0.7, k.head, 0, 0.5, 0),         // dorsal crest
-      box(0.16, 0.14, 0.95, k.body, 0, 0.28, -0.9),    // long tail
-      box(0.5, 0.12, 0.14, k.leg, 0.3, 0.18, 0.3),     // 4 sprawled legs
+      box(0.8, 1.3, 0.8, k.leg, 0.45, 0.65, 0),          // 2 thick legs (walk-tagged)
+      box(0.8, 1.3, 0.8, k.leg, -0.45, 0.65, 0),
+      torso, core, head, eyeL, eyeR, armL, armR,
+      box(0.95, 0.8, 1.0, k.leg, 1.25, 0.85, 0),         // fists
+      box(0.95, 0.8, 1.0, k.leg, -1.25, 0.85, 0),
+    ];
+    // bright molten seam accents + magma dripping from the fists (all self-lit)
+    for (const [x, y, z, w, h, d] of [
+      [0, 2.15, 0.67, 0.12, 1.5, 0.05],   // vertical torso seam
+      [0, 1.55, 0.67, 1.6, 0.1, 0.05],    // horizontal torso seam
+      [1.25, 1.1, 0.0, 0.3, 0.14, 0.3],   // magma drip, right fist
+      [-1.25, 1.1, 0.0, 0.3, 0.14, 0.3],  // magma drip, left fist
+    ]) {
+      const seam = box(w, h, d, 0xff6a1a, x, y, z);
+      seam.userData.glow = 0xff6a1a; parts.push(seam);
+    }
+  } else if (k.shape === 'iguana') {
+    const px = (draw) => {
+      const c = document.createElement('canvas'); c.width = c.height = 16;
+      const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
+      draw(g2);
+      const t = new THREE.CanvasTexture(c);
+      t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+      return t;
+    };
+    // scaly hide: base green with an offset-brick pattern of lighter/darker scales
+    const scaleTex = px((g2) => {
+      g2.fillStyle = '#6fae4a'; g2.fillRect(0, 0, 16, 16);
+      for (let y = 0; y < 16; y += 3) {
+        for (let x = 0; x < 16; x += 3) {
+          const ox = (y / 3) % 2 ? 1 : 0;
+          g2.fillStyle = ((x + y) / 3) % 2 ? '#7cbb55' : '#5a9440';
+          g2.fillRect((x + ox) % 16, y, 2, 2);
+          g2.fillStyle = '#3a5f28';
+          g2.fillRect((x + ox) % 16, y + 2, 2, 1);
+        }
+      }
+    });
+    const txBox = (w, h, d, tex, x, y, z) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ map: tex }));
+      m.position.set(x, y, z); m.userData.dim = { w, h, d };
+      return m;
+    };
+    parts = [
+      txBox(0.35, 0.3, 1.0, scaleTex, 0, 0.3, 0),       // long low scaly body
+      txBox(0.3, 0.28, 0.35, scaleTex, 0, 0.32, 0.62),   // head
+      box(0.07, 0.07, 0.05, 0x101010, 0.12, 0.4, 0.75),  // eyes
+      box(0.07, 0.07, 0.05, 0x101010, -0.12, 0.4, 0.75),
+      box(0.18, 0.15, 0.07, k.leg, 0, 0.19, 0.74),       // dewlap under chin
+      box(0.5, 0.12, 0.14, k.leg, 0.3, 0.18, 0.3),       // 4 sprawled legs
       box(0.5, 0.12, 0.14, k.leg, -0.3, 0.18, 0.3),
       box(0.5, 0.12, 0.14, k.leg, 0.3, 0.18, -0.3),
       box(0.5, 0.12, 0.14, k.leg, -0.3, 0.18, -0.3),
     ];
+    // segmented dorsal crest: a row of spikes tapering from neck to tail
+    const spikes = [[0.42, 0.2], [0.24, 0.22], [0.05, 0.2], [-0.15, 0.17],
+                    [-0.4, 0.15], [-0.7, 0.12], [-1.0, 0.09], [-1.3, 0.06]];
+    for (const [z, h] of spikes) parts.push(box(0.05, h, 0.13, 0x3a5f28, 0, 0.45 + h / 2, z));
+    // long tapering tail (3 segments), swaying side to side
+    const t1 = box(0.15, 0.13, 0.5, k.body, 0, 0.28, -0.75);
+    const t2 = box(0.1, 0.09, 0.4, k.body, 0, 0.27, -1.15);
+    const t3 = box(0.06, 0.06, 0.35, k.body, 0, 0.27, -1.45);
+    t1.userData.sway = 0.22; t2.userData.sway = 0.22; t3.userData.sway = 0.22;
+    parts.push(t1, t2, t3);
+    // sprawled legs are horizontal -> can't swing front-to-back; sway them instead
+    for (const p of parts) {
+      if (p.material.color && p.material.color.getHex() === k.leg && p.userData.dim.w > 0.3) p.userData.sway = 0.1;
+    }
   } else if (k.shape === 'ostrich') {
+    const px = (draw) => {
+      const c = document.createElement('canvas'); c.width = c.height = 16;
+      const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false; draw(g2);
+      const t = new THREE.CanvasTexture(c);
+      t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; return t;
+    };
+    const tbox = (w, h, d, tex, x, y, z) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ map: tex }));
+      m.position.set(x, y, z); m.userData.dim = { w, h, d }; return m;
+    };
+    const plumeTex = px(g2 => {                          // fluffy dark feathers
+      g2.fillStyle = '#4a4038'; g2.fillRect(0, 0, 16, 16);
+      g2.fillStyle = '#5a4e44'; for (let y = 0; y < 16; y += 3) for (let x = (y / 3 % 2) * 2; x < 16; x += 4) g2.fillRect(x, y, 2, 2);
+      g2.fillStyle = '#38302a'; for (let x = 1; x < 16; x += 4) g2.fillRect(x, 0, 1, 16);
+    });
+    const neck = box(0.16, 0.85, 0.16, k.body, 0, 1.7, 0.3);
+    neck.userData.sway = 0.15;
+    const plume = tbox(0.6, 0.5, 0.32, plumeTex, 0, 1.2, -0.55);
+    plume.userData.sway = 0.15;
     parts = [
-      box(0.7, 0.7, 0.9, k.body, 0, 1.1, 0),           // round body
-      box(0.5, 0.35, 0.2, k.body, 0, 1.15, -0.55),     // tail feathers
-      box(0.18, 0.9, 0.18, k.leg, 0.18, 0.45, 0.05),   // long legs
+      tbox(0.72, 0.72, 0.92, plumeTex, 0, 1.1, 0),       // round fluffy body
+      plume,                                             // fluffy plume tail
+      box(0.18, 0.9, 0.18, k.leg, 0.18, 0.45, 0.05),     // very long legs
       box(0.18, 0.9, 0.18, k.leg, -0.18, 0.45, 0.05),
-      box(0.16, 0.85, 0.16, k.body, 0, 1.7, 0.3),      // long neck
-      box(0.28, 0.3, 0.42, k.head, 0, 2.18, 0.42),     // head
+      box(0.24, 0.06, 0.3, k.leg, 0.18, 0.02, 0.12),     // splayed feet
+      box(0.24, 0.06, 0.3, k.leg, -0.18, 0.02, 0.12),
+      neck,                                              // long neck
+      box(0.28, 0.3, 0.42, k.head, 0, 2.18, 0.42),       // small head
+      box(0.14, 0.1, 0.16, 0xdd9944, 0, 2.12, 0.68),     // beak
+      box(0.08, 0.09, 0.06, 0x101010, 0.1, 2.24, 0.6),   // big eyes
+      box(0.08, 0.09, 0.06, 0x101010, -0.1, 2.24, 0.6),
+      box(0.12, 0.4, 0.5, k.body, 0.42, 1.05, 0),        // stubby wing feathers
+      box(0.12, 0.4, 0.5, k.body, -0.42, 1.05, 0),
+      box(0.13, 0.14, 0.5, 0xf0ece4, 0.43, 0.82, 0),     // white wing tips
+      box(0.13, 0.14, 0.5, 0xf0ece4, -0.43, 0.82, 0),
     ];
   } else if (k.shape === 'cheetah') {
-    parts = [
-      box(0.5, 0.5, 1.5, k.body, 0, 0.65, 0),          // sleek long body
-      box(0.42, 0.42, 0.45, k.head, 0, 0.78, 0.9),     // head
-      box(0.12, 0.1, 1.0, k.leg, 0, 0.58, -1.15),      // long tail
-      box(0.18, 0.55, 0.18, k.leg, 0.2, 0.28, 0.5),    // 4 legs
-      box(0.18, 0.55, 0.18, k.leg, -0.2, 0.28, 0.5),
-      box(0.18, 0.55, 0.18, k.leg, 0.2, 0.28, -0.5),
-      box(0.18, 0.55, 0.18, k.leg, -0.2, 0.28, -0.5),
-    ];
+    // 16x16 pixel-texture helper (shared convention: NearestFilter, no smoothing)
+    const px = (draw) => {
+      const c = document.createElement('canvas'); c.width = c.height = 16;
+      const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
+      draw(g2);
+      const t = new THREE.CanvasTexture(c);
+      t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+      return t;
+    };
+    // textured box: keep material color white so the map reads true and so
+    // tagWalkLimbs() never mistakes it for a leg (leg check is color-based)
+    const tbox = (w, h, d, tex, x, y, z) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
+                               new THREE.MeshLambertMaterial({ map: tex }));
+      m.position.set(x, y, z);
+      m.userData.dim = { w, h, d };
+      return m;
+    };
+    if (k.name === 'Fox') {
+      const WHITE = 0xf2ede4, DARK = 0x1a140f;
+      parts = [
+        box(0.5, 0.5, 1.5, k.body, 0, 0.65, 0),            // rusty body
+        box(0.42, 0.18, 1.1, WHITE, 0, 0.46, 0.05),         // white chest/belly
+        box(0.42, 0.42, 0.45, k.head, 0, 0.78, 0.9),        // head
+        box(0.26, 0.2, 0.32, WHITE, 0, 0.72, 1.2),          // white pointed snout
+        box(0.1, 0.09, 0.09, DARK, 0, 0.74, 1.37),          // nose
+        box(0.08, 0.09, 0.05, DARK, 0.13, 0.86, 1.12),      // dark eyes
+        box(0.08, 0.09, 0.05, DARK, -0.13, 0.86, 1.12),
+        box(0.28, 0.28, 0.28, WHITE, 0, 0.6, -1.62),        // bushy white tail tip
+      ];
+      // pointed ears: orange base + black tips (twitch flick)
+      for (const sx of [1, -1]) {
+        const ear = box(0.14, 0.22, 0.08, k.head, sx * 0.15, 1.04, 0.85);
+        ear.userData.twitch = 0.15;
+        parts.push(ear, box(0.1, 0.1, 0.06, DARK, sx * 0.15, 1.18, 0.85));
+      }
+      // big bushy tail (body-colored so it sways instead of swinging as a leg)
+      const tail = box(0.26, 0.26, 1.0, k.body, 0, 0.6, -1.05);
+      tail.userData.sway = 0.2;
+      parts.push(tail);
+      // orange upper legs + black "socks" (the socks are the swinging limbs)
+      for (const [sx, sz] of [[0.2, 0.5], [-0.2, 0.5], [0.2, -0.5], [-0.2, -0.5]]) {
+        parts.push(box(0.18, 0.34, 0.18, k.body, sx, 0.44, sz));   // upper leg
+        parts.push(box(0.18, 0.3, 0.18, k.leg, sx, 0.15, sz));      // black sock
+      }
+    } else {
+      // Cheetah: sleek tan cat with a spotted coat
+      const DARK = 0x120d08;
+      const spotTex = px(g2 => {
+        g2.fillStyle = '#d9a441'; g2.fillRect(0, 0, 16, 16);
+        g2.fillStyle = '#6f4a1c';
+        for (const [x, y] of [[2, 3], [6, 2], [11, 4], [4, 7], [9, 8], [13, 9],
+                              [3, 11], [7, 12], [12, 13], [10, 6], [5, 14], [14, 1]])
+          g2.fillRect(x, y, 2, 2);
+      });
+      parts = [
+        tbox(0.5, 0.5, 1.5, spotTex, 0, 0.65, 0),          // spotted body
+        box(0.42, 0.42, 0.45, k.head, 0, 0.78, 0.9),        // head
+        box(0.24, 0.18, 0.16, 0xe8c37a, 0, 0.72, 1.16),     // pale muzzle
+        box(0.08, 0.06, 0.06, DARK, 0, 0.76, 1.25),         // nose
+        box(0.08, 0.08, 0.05, DARK, 0.13, 0.86, 1.13),      // eyes
+        box(0.08, 0.08, 0.05, DARK, -0.13, 0.86, 1.13),
+        box(0.045, 0.2, 0.05, 0x201810, 0.13, 0.72, 1.14),  // black tear lines
+        box(0.045, 0.2, 0.05, 0x201810, -0.13, 0.72, 1.14),
+        box(0.18, 0.55, 0.18, k.leg, 0.2, 0.28, 0.5),        // 4 legs
+        box(0.18, 0.55, 0.18, k.leg, -0.2, 0.28, 0.5),
+        box(0.18, 0.55, 0.18, k.leg, 0.2, 0.28, -0.5),
+        box(0.18, 0.55, 0.18, k.leg, -0.2, 0.28, -0.5),
+      ];
+      // small rounded ears (twitch flick)
+      for (const sx of [1, -1]) {
+        const ear = box(0.12, 0.12, 0.09, k.head, sx * 0.14, 1.0, 0.86);
+        ear.userData.twitch = 0.15;
+        parts.push(ear);
+      }
+      // long thin tail (body-colored so it sways) with a dark banded tip
+      const tail = box(0.12, 0.12, 1.0, k.body, 0, 0.6, -1.1);
+      tail.userData.sway = 0.2;
+      parts.push(tail, box(0.14, 0.14, 0.22, 0x201810, 0, 0.6, -1.65));
+    }
   } else if (k.shape === 'alien') {
+    // 16x16 pixel face for the big glossy head: mint skin, dark outline, the
+    // iconic big black almond eyes plus tiny nostrils and a slit mouth
+    const px = (draw) => {
+      const c = document.createElement('canvas'); c.width = c.height = 16;
+      const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
+      draw(g2);
+      const t = new THREE.CanvasTexture(c);
+      t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+      return t;
+    };
+    const faceTex = px((g2) => {
+      g2.fillStyle = '#8df0bd'; g2.fillRect(0, 0, 16, 16);           // mint skin
+      g2.fillStyle = '#6bc79a'; g2.fillRect(0, 0, 16, 2);            // subtle top shade
+      g2.fillStyle = '#0a0f14';                                      // big black almond eyes
+      g2.fillRect(2, 6, 4, 3); g2.fillRect(3, 5, 2, 1); g2.fillRect(3, 9, 2, 1);
+      g2.fillRect(10, 6, 4, 3); g2.fillRect(11, 5, 2, 1); g2.fillRect(11, 9, 2, 1);
+      g2.fillStyle = '#dffff0';                                      // eye glints
+      g2.fillRect(3, 6, 1, 1); g2.fillRect(11, 6, 1, 1);
+      g2.fillStyle = '#5aa87c';                                      // nostril + mouth hints
+      g2.fillRect(7, 11, 1, 1); g2.fillRect(8, 11, 1, 1);
+      g2.fillRect(6, 13, 4, 1);
+    });
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.72, 0.7, 0.72),
+      new THREE.MeshLambertMaterial({ map: faceTex }));
+    head.position.set(0, 1.7, 0);
+    head.userData.dim = { w: 0.72, h: 0.7, d: 0.72 };
+    head.userData.headBob = 0.02;
+    const antL = box(0.06, 0.3, 0.06, k.head, 0.18, 2.18, 0);       // antennae stalks
+    const antR = box(0.06, 0.3, 0.06, k.head, -0.18, 2.18, 0);
+    antL.userData.sway = antR.userData.sway = 0.2;
+    const tipL = box(0.1, 0.1, 0.1, k.head, 0.18, 2.36, 0);         // glowing antenna tips
+    const tipR = box(0.1, 0.1, 0.1, k.head, -0.18, 2.36, 0);
+    tipL.userData.glow = tipR.userData.glow = 0x8dffb0;
+    tipL.userData.sway = tipR.userData.sway = 0.2;
     parts = [
       box(0.5, 0.85, 0.3, k.body, 0, 0.9, 0),            // slender body
-      box(0.72, 0.7, 0.72, k.head, 0, 1.7, 0),           // big head
-      box(0.62, 0.16, 0.16, 0x101820, 0, 1.74, 0.36),    // dark eye band
+      head,
+      box(0.16, 0.16, 0.1, 0x8dffb0, 0, 1.02, 0.18),     // glowing chest orb
       box(0.18, 0.6, 0.18, k.body, 0.32, 0.9, 0),        // thin arms
       box(0.18, 0.6, 0.18, k.body, -0.32, 0.9, 0),
-      box(0.2, 0.55, 0.2, k.leg, 0.14, 0.28, 0),
+      box(0.24, 0.14, 0.14, k.head, 0.32, 0.55, 0.02),   // 3-finger hands
+      box(0.24, 0.14, 0.14, k.head, -0.32, 0.55, 0.02),
+      box(0.2, 0.55, 0.2, k.leg, 0.14, 0.28, 0),         // slender legs
       box(0.2, 0.55, 0.2, k.leg, -0.14, 0.28, 0),
-      box(0.06, 0.3, 0.06, k.head, 0.18, 2.18, 0),       // antennae
-      box(0.06, 0.3, 0.06, k.head, -0.18, 2.18, 0),
+      box(0.26, 0.16, 0.26, k.leg, 0.14, 0.5, 0),        // bulbous knees (wide: not walk-tagged)
+      box(0.26, 0.16, 0.26, k.leg, -0.14, 0.5, 0),
+      antL, antR, tipL, tipR,
     ];
+    parts[2].userData.glow = 0x8dffb0;
   } else if (k.shape === 'bird') {
-    parts = [
-      box(0.42, 0.42, 0.85, k.body, 0, 0, 0),            // body
-      box(0.32, 0.32, 0.32, k.head, 0, 0.16, 0.52),      // head
-      box(0.12, 0.1, 0.22, k.leg, 0, 0.13, 0.76),        // beak
-      box(0.46, 0.5, 0.5, k.body, 0, -0.04, -0.5),       // tail
-    ];
-    const wL = box(0.95, 0.08, 0.5, k.body, 0.6, 0.05, 0);
-    const wR = box(0.95, 0.08, 0.5, k.body, -0.6, 0.05, 0);
-    wL.userData.wing = 1; wR.userData.wing = -1;
+    const px = (draw) => {
+      const c = document.createElement('canvas'); c.width = c.height = 16;
+      const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false; draw(g2);
+      const t = new THREE.CanvasTexture(c);
+      t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; return t;
+    };
+    const tbox = (w, h, d, tex, x, y, z) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ map: tex }));
+      m.position.set(x, y, z); m.userData.dim = { w, h, d }; return m;
+    };
+    let wL, wR;
+    if (k.name === 'Duck') {
+      const bodyTex = px(g2 => {                          // pale cream feathers
+        g2.fillStyle = '#f2e8c0'; g2.fillRect(0, 0, 16, 16);
+        g2.fillStyle = '#e6d8a8'; for (let y = 3; y < 16; y += 4) g2.fillRect(0, y, 16, 2);
+        g2.fillStyle = '#d8c890'; for (let x = 1; x < 16; x += 5) g2.fillRect(x, 6, 2, 2);
+      });
+      const wingTex = px(g2 => {                          // pale wing with speculum patch
+        g2.fillStyle = '#e6d8a8'; g2.fillRect(0, 0, 16, 16);
+        g2.fillStyle = '#ffffff'; g2.fillRect(1, 5, 14, 5);
+        g2.fillStyle = '#2f7a6a'; g2.fillRect(1, 10, 14, 2);
+      });
+      const tail = box(0.42, 0.22, 0.4, 0xf2e8c0, 0, 0.12, -0.5);
+      tail.rotation.x = -0.5; tail.userData.sway = 0.15;   // upturned tail
+      parts = [
+        tbox(0.5, 0.46, 0.9, bodyTex, 0, 0, 0),            // rounded body
+        box(0.36, 0.36, 0.34, k.head, 0, 0.3, 0.5),        // green drake head
+        box(0.38, 0.06, 0.38, 0xffffff, 0, 0.11, 0.5),     // white neck ring
+        box(0.3, 0.09, 0.3, k.leg, 0, 0.26, 0.74),         // flat orange bill
+        box(0.05, 0.06, 0.05, 0x101010, 0.13, 0.36, 0.62), // eyes
+        box(0.05, 0.06, 0.05, 0x101010, -0.13, 0.36, 0.62),
+        box(0.2, 0.05, 0.3, k.leg, 0.14, -0.26, 0.06),     // webbed feet
+        box(0.2, 0.05, 0.3, k.leg, -0.14, -0.26, 0.06),
+        tail,
+      ];
+      wL = tbox(0.7, 0.1, 0.5, wingTex, 0.36, 0.05, -0.05);
+      wR = tbox(0.7, 0.1, 0.5, wingTex, -0.36, 0.05, -0.05);
+    } else {
+      const bodyTex = px(g2 => {                          // layered blue feathers
+        g2.fillStyle = '#4a86e0'; g2.fillRect(0, 0, 16, 16);
+        g2.fillStyle = '#3f73c4'; for (let y = 2; y < 16; y += 4) for (let x = (y / 2 % 2) ? 0 : 2; x < 16; x += 4) g2.fillRect(x, y, 3, 2);
+        g2.fillStyle = '#6aa2f2'; for (let x = 0; x < 16; x += 4) g2.fillRect(x, 0, 2, 2);
+      });
+      const wingTex = px(g2 => {                          // two-tone wing with white bar
+        g2.fillStyle = '#3f73c4'; g2.fillRect(0, 0, 16, 16);
+        g2.fillStyle = '#4a86e0'; g2.fillRect(0, 0, 16, 4);
+        g2.fillStyle = '#ffffff'; g2.fillRect(0, 8, 16, 2);
+        g2.fillStyle = '#2b5aa0'; g2.fillRect(0, 11, 16, 5);
+      });
+      const tail = tbox(0.4, 0.12, 0.55, wingTex, 0, -0.02, -0.55);
+      tail.userData.sway = 0.15;                          // forked two-tone tail
+      parts = [
+        tbox(0.42, 0.42, 0.85, bodyTex, 0, 0, 0),          // feathered body
+        box(0.32, 0.32, 0.32, k.head, 0, 0.16, 0.52),      // head
+        box(0.09, 0.16, 0.12, k.head, 0, 0.36, 0.48),      // crest
+        box(0.1, 0.1, 0.24, 0xffcf3a, 0, 0.13, 0.76),      // yellow beak
+        box(0.05, 0.06, 0.05, 0x101010, 0.12, 0.2, 0.64),  // small eyes
+        box(0.05, 0.06, 0.05, 0x101010, -0.12, 0.2, 0.64),
+        tail,
+      ];
+      wL = tbox(0.95, 0.08, 0.5, wingTex, 0.6, 0.05, 0);
+      wR = tbox(0.95, 0.08, 0.5, wingTex, -0.6, 0.05, 0);
+    }
+    wL.userData.wing = 1; wR.userData.wing = -1;           // flap driver (Bird flies)
     parts.push(wL, wR);
   } else if (k.shape === 'squirrel') {
+    const px = (draw) => {
+      const c = document.createElement('canvas'); c.width = c.height = 16;
+      const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
+      draw(g2);
+      const t = new THREE.CanvasTexture(c);
+      t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+      return t;
+    };
+    // wispy fur streaks for the big bushy tail
+    const furTex = px(g2 => {
+      g2.fillStyle = '#8a5a2b'; g2.fillRect(0, 0, 16, 16);
+      const cols = ['#6e4622', '#9a6a35', '#a87a45', '#7a4d24'];
+      for (let i = 0; i < 60; i++) {
+        g2.fillStyle = cols[i % cols.length];
+        g2.fillRect((i * 5) % 16, (i * 3) % 16, 1, 2 + (i % 2));
+      }
+    });
+    const furMat = new THREE.MeshLambertMaterial({ map: furTex });
+    const fur = (w, h, d, x, y, z) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), furMat);
+      m.position.set(x, y, z);
+      return m;
+    };
+    const tailLow = fur(0.26, 0.44, 0.3, 0, 0.42, -0.36);   // bushy tail base
+    const tailCurl = fur(0.28, 0.34, 0.26, 0, 0.82, -0.22); // curling up over back
+    tailLow.userData.sway = 0.25; tailCurl.userData.sway = 0.25;
+    const earL = box(0.1, 0.14, 0.06, k.head, 0.11, 0.78, 0.32);  // round ears
+    const earR = box(0.1, 0.14, 0.06, k.head, -0.11, 0.78, 0.32);
+    earL.userData.twitch = 0.15; earR.userData.twitch = 0.15;
     parts = [
-      box(0.3, 0.34, 0.5, k.body, 0, 0.34, 0),         // small body
-      box(0.28, 0.3, 0.28, k.head, 0, 0.52, 0.28),      // head up front
-      box(0.08, 0.13, 0.05, k.head, 0.09, 0.68, 0.3),   // ears
-      box(0.08, 0.13, 0.05, k.head, -0.09, 0.68, 0.3),
-      box(0.2, 0.6, 0.42, k.body, 0, 0.55, -0.34),      // big bushy tail
-      box(0.1, 0.22, 0.1, k.leg, 0.1, 0.12, 0.14),      // legs
-      box(0.1, 0.22, 0.1, k.leg, -0.1, 0.12, 0.14),
-      box(0.1, 0.22, 0.1, k.leg, 0.1, 0.12, -0.12),
-      box(0.1, 0.22, 0.1, k.leg, -0.1, 0.12, -0.12),
+      box(0.3, 0.36, 0.5, k.body, 0, 0.34, 0.02),        // small body
+      box(0.32, 0.34, 0.32, k.head, 0, 0.58, 0.3),        // big head
+      box(0.15, 0.14, 0.06, k.head, 0.12, 0.5, 0.42),     // chubby cheeks
+      box(0.15, 0.14, 0.06, k.head, -0.12, 0.5, 0.42),
+      earL, earR,
+      box(0.07, 0.08, 0.05, 0x101010, 0.1, 0.62, 0.46),   // dark eyes
+      box(0.07, 0.08, 0.05, 0x101010, -0.1, 0.62, 0.46),
+      box(0.06, 0.05, 0.04, 0x2a1810, 0, 0.53, 0.48),      // tiny nose
+      tailLow, tailCurl,
+      box(0.1, 0.2, 0.1, k.leg, 0.1, 0.11, 0.16),          // small legs
+      box(0.1, 0.2, 0.1, k.leg, -0.1, 0.11, 0.16),
+      box(0.1, 0.2, 0.1, k.leg, 0.1, 0.11, -0.12),
+      box(0.1, 0.2, 0.1, k.leg, -0.1, 0.11, -0.12),
     ];
   } else if (k.shape === 'deer') {
+    const px = (draw) => {
+      const c = document.createElement('canvas'); c.width = c.height = 16;
+      const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
+      draw(g2);
+      const t = new THREE.CanvasTexture(c);
+      t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+      return t;
+    };
+    // tan coat: base fur with faint darker/lighter vertical streaks
+    const coatTex = px((g2) => {
+      g2.fillStyle = '#b07a44'; g2.fillRect(0, 0, 16, 16);
+      for (let x = 0; x < 16; x++) {
+        g2.fillStyle = x % 3 === 0 ? '#a06b3a' : (x % 3 === 1 ? '#bd8850' : '#b07a44');
+        for (let y = 0; y < 16; y += 2) g2.fillRect(x, y + (x % 2), 1, 1);
+      }
+    });
+    const txBox = (w, h, d, tex, x, y, z) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshLambertMaterial({ map: tex }));
+      m.position.set(x, y, z); m.userData.dim = { w, h, d };
+      return m;
+    };
+    const pale = 0xe8d8b8, bone = 0xd8c9a0;
     parts = [
-      box(0.5, 0.55, 1.1, k.body, 0, 1.0, 0),           // body
-      box(0.16, 0.55, 0.16, k.body, 0, 1.45, 0.45),     // neck
-      box(0.32, 0.4, 0.42, k.head, 0, 1.62, 0.6),        // head
-      box(0.06, 0.32, 0.06, k.head, 0.12, 1.9, 0.55),    // antlers
-      box(0.06, 0.32, 0.06, k.head, -0.12, 1.9, 0.55),
-      box(0.14, 0.72, 0.14, k.leg, 0.18, 0.36, 0.4),     // 4 tall legs
+      txBox(0.5, 0.55, 1.1, coatTex, 0, 1.0, 0),         // slender body
+      box(0.42, 0.16, 1.0, pale, 0, 0.74, 0),            // pale underbelly
+      box(0.34, 0.34, 0.12, pale, 0, 1.06, -0.56),       // white rump patch
+      box(0.16, 0.55, 0.16, k.body, 0, 1.45, 0.45),      // neck
+      box(0.32, 0.4, 0.42, k.head, 0, 1.62, 0.6),         // head
+      box(0.09, 0.11, 0.05, 0x101010, 0.13, 1.67, 0.8),   // big dark eyes
+      box(0.09, 0.11, 0.05, 0x101010, -0.13, 1.67, 0.8),
+      box(0.14, 0.1, 0.06, 0x0a0a0a, 0, 1.53, 0.82),      // black nose
+      box(0.14, 0.72, 0.14, k.leg, 0.18, 0.36, 0.4),      // 4 tall legs (dark socks)
       box(0.14, 0.72, 0.14, k.leg, -0.18, 0.36, 0.4),
       box(0.14, 0.72, 0.14, k.leg, 0.18, 0.36, -0.4),
       box(0.14, 0.72, 0.14, k.leg, -0.18, 0.36, -0.4),
+      box(0.19, 0.32, 0.24, k.body, 0.18, 0.86, 0.4),     // tan haunches over sock tops
+      box(0.19, 0.32, 0.24, k.body, -0.18, 0.86, 0.4),
+      box(0.19, 0.32, 0.24, k.body, 0.18, 0.86, -0.4),
+      box(0.19, 0.32, 0.24, k.body, -0.18, 0.86, -0.4),
     ];
+    // ears (twitch) angled outward
+    const eL = box(0.08, 0.2, 0.11, k.head, 0.2, 1.82, 0.52);
+    const eR = box(0.08, 0.2, 0.11, k.head, -0.2, 1.82, 0.52);
+    eL.rotation.z = -0.4; eR.rotation.z = 0.4;
+    eL.userData.twitch = 0.15; eR.userData.twitch = 0.15;
+    parts.push(eL, eR);
+    // branched antlers: main beam + forward and outward tines per side
+    for (const s of [1, -1]) {
+      parts.push(
+        box(0.05, 0.34, 0.05, bone, s * 0.13, 1.97, 0.5),   // main beam
+        box(0.05, 0.16, 0.05, bone, s * 0.22, 2.05, 0.5),    // outer tine
+        box(0.05, 0.14, 0.05, bone, s * 0.13, 2.08, 0.63),   // forward tine
+        box(0.13, 0.05, 0.05, bone, s * 0.17, 2.14, 0.5),    // top fork crossbar
+      );
+    }
+    // short white tail
+    const tail = box(0.13, 0.22, 0.1, pale, 0, 1.12, -0.62);
+    tail.userData.sway = 0.15;
+    parts.push(tail);
+    const head = parts[4]; head.userData.headBob = 0.02;
   } else if (k.shape === 'frog') {
+    const px = (draw) => {
+      const c = document.createElement('canvas'); c.width = c.height = 16;
+      const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
+      draw(g2);
+      const t = new THREE.CanvasTexture(c);
+      t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+      return t;
+    };
+    // mottled/spotted green skin
+    const skinTex = px(g2 => {
+      g2.fillStyle = '#4a9a3a'; g2.fillRect(0, 0, 16, 16);
+      const spots = [[2, 3], [7, 2], [12, 5], [4, 9], [10, 11], [13, 13], [1, 12], [8, 7]];
+      g2.fillStyle = '#3a7d2e';
+      for (const [x, y] of spots) g2.fillRect(x, y, 2, 2);
+      g2.fillStyle = '#57aa45';
+      for (let i = 0; i < 16; i += 3) g2.fillRect(i, (i * 2) % 16, 1, 1);
+    });
+    const skinMat = new THREE.MeshLambertMaterial({ map: skinTex });
+    const skin = (w, h, d, x, y, z) => {
+      const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), skinMat);
+      m.position.set(x, y, z);
+      return m;
+    };
+    // bulging eyes: green ball + dark pupil + eyelid cap
+    const eyeL = box(0.15, 0.15, 0.15, 0x101010, 0.17, 0.5, 0.4);
+    const eyeR = box(0.15, 0.15, 0.15, 0x101010, -0.17, 0.5, 0.4);
+    eyeL.userData.twitch = 0.1; eyeR.userData.twitch = 0.1;
     parts = [
-      box(0.55, 0.32, 0.5, k.body, 0, 0.26, 0),          // squat body
-      box(0.5, 0.26, 0.3, k.head, 0, 0.32, 0.32),         // wide head
-      box(0.11, 0.11, 0.11, 0x101010, 0.16, 0.46, 0.42),  // eyes
-      box(0.11, 0.11, 0.11, 0x101010, -0.16, 0.46, 0.42),
-      box(0.17, 0.16, 0.3, k.leg, 0.26, 0.13, -0.16),     // big hind legs
+      skin(0.55, 0.32, 0.5, 0, 0.26, 0),                  // squat mottled body
+      skin(0.5, 0.26, 0.32, 0, 0.32, 0.32),                // wide head
+      box(0.4, 0.1, 0.18, 0xcfe0b0, 0, 0.18, 0.42),        // pale throat
+      skin(0.17, 0.17, 0.17, 0.17, 0.48, 0.38),            // eye bulges (green)
+      skin(0.17, 0.17, 0.17, -0.17, 0.48, 0.38),
+      eyeL, eyeR,
+      box(0.05, 0.05, 0.03, 0xffffff, 0.2, 0.53, 0.47),    // eye glints
+      box(0.05, 0.05, 0.03, 0xffffff, -0.14, 0.53, 0.47),
+      box(0.4, 0.02, 0.04, 0x1e3d18, 0, 0.26, 0.48),        // wide mouth line
+      box(0.17, 0.16, 0.3, k.leg, 0.26, 0.13, -0.16),      // powerful hind legs
       box(0.17, 0.16, 0.3, k.leg, -0.26, 0.13, -0.16),
-      box(0.1, 0.13, 0.1, k.leg, 0.2, 0.1, 0.3),          // front legs
-      box(0.1, 0.13, 0.1, k.leg, -0.2, 0.1, 0.3),
+      box(0.11, 0.09, 0.16, k.leg, 0.27, 0.06, 0.06),       // folded hind feet
+      box(0.11, 0.09, 0.16, k.leg, -0.27, 0.06, 0.06),
+      box(0.09, 0.14, 0.09, k.leg, 0.2, 0.1, 0.32),         // small front legs
+      box(0.09, 0.14, 0.09, k.leg, -0.2, 0.1, 0.32),
     ];
   } else if (k.shape === 'turtle') {
+    const px = (draw) => {
+      const c = document.createElement('canvas'); c.width = c.height = 16;
+      const g2 = c.getContext('2d'); g2.imageSmoothingEnabled = false;
+      draw(g2);
+      const t = new THREE.CanvasTexture(c);
+      t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter;
+      return t;
+    };
+    // hexagon scute plates for the shell
+    const shellTex = px(g2 => {
+      g2.fillStyle = '#3d6228'; g2.fillRect(0, 0, 16, 16);   // dark grout
+      g2.fillStyle = '#4f7d34';
+      // central plate + surrounding ring of scutes
+      const plates = [
+        [6, 6, 4, 4], [6, 1, 4, 4], [6, 11, 4, 4],
+        [1, 4, 4, 4], [11, 4, 4, 4], [1, 9, 4, 4], [11, 9, 4, 4],
+      ];
+      for (const [x, y, w, h] of plates) g2.fillRect(x, y, w, h);
+      g2.fillStyle = '#5f9040';                               // plate highlights
+      for (const [x, y] of plates) g2.fillRect(x + 1, y + 1, 1, 1);
+    });
+    const shellMat = new THREE.MeshLambertMaterial({ map: shellTex });
+    const shell = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.42, 0.9), shellMat);
+    shell.position.set(0, 0.42, 0);
+    const flL = box(0.16, 0.14, 0.3, k.leg, 0.32, 0.16, 0.32);   // 4 flippers
+    const flR = box(0.16, 0.14, 0.3, k.leg, -0.32, 0.16, 0.32);
+    const flBL = box(0.16, 0.14, 0.3, k.leg, 0.32, 0.16, -0.32);
+    const flBR = box(0.16, 0.14, 0.3, k.leg, -0.32, 0.16, -0.32);
+    for (const f of [flL, flR, flBL, flBR]) f.userData.sway = 0.12; // paddling
     parts = [
-      box(0.7, 0.42, 0.9, k.body, 0, 0.42, 0),           // shell dome
+      shell,                                              // patterned shell dome
       box(0.78, 0.2, 0.98, k.leg, 0, 0.2, 0),             // lower shell rim
-      box(0.26, 0.24, 0.26, k.head, 0, 0.34, 0.62),        // head
-      box(0.16, 0.14, 0.3, k.leg, 0.32, 0.16, 0.32),       // flippers
-      box(0.16, 0.14, 0.3, k.leg, -0.32, 0.16, 0.32),
-      box(0.16, 0.14, 0.3, k.leg, 0.32, 0.16, -0.32),
-      box(0.16, 0.14, 0.3, k.leg, -0.32, 0.16, -0.32),
+      box(0.26, 0.24, 0.26, k.head, 0, 0.34, 0.62),        // greenish head
+      box(0.06, 0.07, 0.05, 0x101010, 0.08, 0.4, 0.72),    // eyes poking out
+      box(0.06, 0.07, 0.05, 0x101010, -0.08, 0.4, 0.72),
+      box(0.12, 0.1, 0.2, k.head, 0, 0.24, -0.52),          // little tail
+      flL, flR, flBL, flBR,
     ];
-  } else { // quad
+  } else { // quad fallback
     parts = [
       box(0.85, 0.6, 1.25, k.body, 0, 0.7, 0),
       box(0.6, 0.6, 0.6, k.head, 0, 0.85, 0.85),
@@ -1784,7 +3012,13 @@ function buildBody(k) {
       box(0.22, 0.5, 0.22, k.leg, -0.28, 0.25, -0.45),
     ];
   }
+  tagWalkLimbs(parts, k);
   parts.forEach(p => g.add(p));
+  // cloned per-instance so a hit-flash on one mob doesn't bleed into every
+  // other mob sharing the same cached (color-keyed) material
+  parts.forEach(p => { p.material = p.material.clone(); });
+  // self-lit accents (e.g. the colossus magma core/eyes) glow from spawn
+  parts.forEach(p => { if (p.userData.glow) p.material.emissive.setHex(p.userData.glow); });
   return { g, parts };
 }
 function spawnFrom(kind, x, z) {
@@ -1814,7 +3048,47 @@ function spawnHostile(x, z) {
   for (const k of HOSTILE_KINDS) { r -= (k.weight ?? 1); if (r <= 0) { pick = k; break; } }
   return spawnFrom(pick, x, z);
 }
-function setEmissive(mob, hex) { mob.parts.forEach(p => p.material.emissive.setHex(hex)); }
+// hex 0 = "clear": accent parts fall back to their self-lit glow color
+function setEmissive(mob, hex) { mob.parts.forEach(p => p.material.emissive.setHex(hex || p.userData.glow || 0x000000)); }
+// swing tagged legs from the hip so a walking mob reads as alive instead of a
+// sliding block. When stopped, legs ease back to a neutral stance.
+function animateWalk(entry, moving, dt) {
+  if (entry.walk === undefined) entry.walk = 0;
+  const speed = entry.speed || (entry.kind && entry.kind.speed) || 2;
+  if (moving) entry.walk += dt * speed * 3.0;
+  const ease = Math.min(1, dt * 12);
+  const bob = entry.bob || 0;
+  // gentle idle "breathe": a tiny vertical squash so a stopped mob never freezes
+  const breathe = moving ? 0 : Math.sin(clock * 1.4 + bob) * 0.015;
+  let i = 0;
+  for (const p of entry.parts) {
+    const ud = p.userData;
+    if (ud._baseSy === undefined) ud._baseSy = p.scale.y;
+    p.scale.y = ud._baseSy * (1 + breathe);
+    const L = ud.limb;
+    if (L) {
+      const target = moving ? Math.sin(entry.walk + L.phase) * 0.5 : 0;
+      const t = p.rotation.x + (target - p.rotation.x) * ease;
+      p.rotation.x = t;
+      // pivot at the hip (top of the leg) rather than the leg's center
+      p.position.y = L.baseY + L.half * (1 - Math.cos(t));
+      p.position.z = L.baseZ - L.half * Math.sin(t);
+      i++; continue;
+    }
+    // secondary motion from inert data tags (tails/ears/wings/heads); phase-
+    // offset per part + per mob so nothing rocks in lockstep
+    if (ud.sway) p.rotation.z = Math.sin(clock * 2 + bob + i * 1.3) * ud.sway;
+    if (ud.headBob) {
+      if (ud._baseY === undefined) ud._baseY = p.position.y;
+      p.position.y = ud._baseY + Math.sin(clock * 1.6 + bob) * ud.headBob;
+    }
+    if (ud.twitch) {
+      const s = Math.sin(clock * 0.7 + bob);   // brief flick when the slow wave peaks
+      p.rotation.x = s > 0.97 ? Math.sin(clock * 30) * ud.twitch : 0;
+    }
+    i++;
+  }
+}
 function removeMob(mob) {
   scene.remove(mob.group);
   mobs.splice(mobs.indexOf(mob), 1);
@@ -1944,6 +3218,7 @@ function updatePlanetMob(mob, dt) {
     g.quaternion.multiply(qDance);
   }
 
+  animateWalk(mob, mob.moving && mob.onGround, dt);
   if (mob.hitT > 0) { mob.hitT -= dt; if (mob.hitT <= 0) setEmissive(mob, 0x000000); }
 }
 function updateMob(mob, dt) {
@@ -2026,12 +3301,13 @@ function updateMob(mob, dt) {
   if (partyModeT > 0) {
     g.rotation.z = Math.sin(clock * 9 + mob.bob) * 0.18;
   } else g.rotation.z = 0;
+  animateWalk(mob, mob.moving && mob.onGround, dt);
   if (mob.hitT > 0) { mob.hitT -= dt; if (mob.hitT <= 0) setEmissive(mob, 0x000000); }
   if (g.position.y < -30) removeMob(mob);
 }
 function hurtMob(mob, dmg, dir) {
   mob.hp -= dmg;
-  mob.hitT = 0.18; setEmissive(mob, 0x888888);
+  mob.hitT = 0.18; setEmissive(mob, 0xff2222);
   mob.vy = 5;
   mob.group.position.x += dir.x * 0.6;
   mob.group.position.z += dir.z * 0.6;
@@ -2136,6 +3412,7 @@ addEventListener('mousedown', (e) => {
         counts[currentSlot] = Infinity;
         paintSlot(currentSlot);
         buildHeld(id);
+        markSaveDirty();
         setPrompt(`Copied ${itemName(id)}`, 0.9);
       }
     }
@@ -2239,17 +3516,22 @@ function updateBullets(dt) {
 }
 // ---- hold-to-break mining + melee ----
 let lmbDown = false, mineKey = null, mineT = 0, meleeCD = 0;
+let crackStage = -1;
 const mineBarEl = document.getElementById('mineBar');
 function setMineBar(p) {
   if (p <= 0) {
     mineBarEl.style.display = 'none';
     crackMesh.visible = false;
+    crackStage = -1;
   } else {
     mineBarEl.style.display = 'block';
     mineBarEl.firstElementChild.style.width = (p * 100) + '%';
     const stage = Math.min(CRACK_STAGES, Math.floor(p * (CRACK_STAGES + 1)));
-    crackMesh.material.map = crackCanvases[stage];
-    crackMesh.material.needsUpdate = true;
+    if (stage !== crackStage) {
+      crackStage = stage;
+      crackMesh.material.map = crackCanvases[stage];
+      crackMesh.material.needsUpdate = true;
+    }
     if (aimBlock) {
       crackMesh.position.set(aimBlock.x + 0.5, aimBlock.y + 0.5, aimBlock.z + 0.5);
       crackMesh.visible = true;
@@ -2285,11 +3567,13 @@ function breakBlock(x, y, z) {
     respawnPoint = SPAWN.clone();                        // lost your bed → back to world spawn
   world.delete(k);
   edits.set(k, null);
+  markSaveDirty();
   const owned = chunkOwnedBlocks(...chunkOf(x, z)); if (owned) owned.delete(k);
   markDirty(x, y, z);
   spawnParticles(x, y, z, BLOCKS[broken].color, 10);
   if (broken === 'pumpkin' || broken === 'cheese') spawnConfettiBurst(x, y, z, 18);
   broadcastBlockEdit(x, y, z, null);
+  if (multiplayerJoined && classQuest.active && classQuest.type === 'mine') sendRoom({ type: 'quest:progress', qtype: 'mine', n: 1 });
   if (gameMode === 'survival' && isBlock(broken) && broken !== 'water') {
     const held = hotbar[currentSlot];
     if (canHarvest(broken, held)) { const d = dropOf(broken); if (d) spawnDrop(d, x, y, z); }
@@ -2330,6 +3614,34 @@ function updateLeftAction(dt) {
   setMineBar(isFinite(bt) ? Math.min(1, mineT / bt) : 0);
   if (isFinite(bt) && mineT >= bt) { breakBlock(x, y, z); resetMine(); meleeCD = 0.05; }
 }
+function spawnWithEgg(eggId) {
+  const egg = SPAWN_EGGS[eggId];
+  if (!egg) return;
+  let sx, sy, sz;
+  if (aimBlock) {
+    sx = aimBlock.x + aimBlock.nx + 0.5;
+    sy = aimBlock.y + aimBlock.ny + 0.1;
+    sz = aimBlock.z + aimBlock.nz + 0.5;
+  } else {
+    const dir = new THREE.Vector3();
+    camera.getWorldDirection(dir);
+    const pp = controls.getObject().position;
+    sx = pp.x + dir.x * 4; sy = pp.y + dir.y * 4 - PLAYER_H; sz = pp.z + dir.z * 4;
+  }
+  const k = egg.kind;
+  if (MULTIPLAYER && multiplayerJoined) {
+    // route through the server so every player sees the mob (not just us)
+    sendRoom({ type: 'mob:spawn', kind: k.name, x: sx, y: sy, z: sz,
+               hostile: !!k.hostile, hp: k.hp, speed: k.speed,
+               dmg: k.dmg || 0, detect: k.detect || 0, explode: !!k.explode });
+  } else {
+    const m = spawnFromAt(k, sx, sy, sz, { x: sx, z: sz }, SIZE);
+    if (k.fly) m.group.position.set(sx, sy + 4, sz);
+  }
+  spawnParticles(sx - 0.5, sy, sz - 0.5, k.body, 12);
+  spawnParticles(sx - 0.5, sy + 0.5, sz - 0.5, 0xffffff, 5);
+  setPrompt(`Spawned ${k.name}!`, 1.1);
+}
 function rightClick() {
   if (aimBlock) {
     const ak = key(aimBlock.x, aimBlock.y, aimBlock.z);
@@ -2344,6 +3656,7 @@ function rightClick() {
   }
   const held = hotbar[currentSlot];
   if (isFood(held)) { eatFood(held); return; }
+  if (isSpawnEgg(held) && gameMode === 'creative') { spawnWithEgg(held); return; }
   if (!aimBlock || !isBlock(held)) return;
   if (gameMode === 'survival' && counts[currentSlot] <= 0) return;   // nothing left to place
   const lineMode = keys['ShiftLeft'] || keys['ShiftRight'];
@@ -2356,9 +3669,11 @@ function rightClick() {
     const { x: nx, y: ny, z: nz } = tgt;
     world.set(key(nx, ny, nz), held);
     edits.set(key(nx, ny, nz), held);
+    markSaveDirty();
     const owned = chunkOwnedBlocks(...chunkOf(nx, nz)); if (owned) owned.add(key(nx, ny, nz));
     markDirty(nx, ny, nz);
     broadcastBlockEdit(nx, ny, nz, held);
+    if (multiplayerJoined && classQuest.active && classQuest.type === 'build') sendRoom({ type: 'quest:progress', qtype: 'build', n: 1 });
     placed++;
   }
   if (placed <= 0) return;
@@ -2379,6 +3694,7 @@ function rightClick() {
       tryRestockSlot(currentSlot, oldId);
     }
     paintSlot(currentSlot);
+    markSaveDirty();
   }
 }
 function distToBlock(b) {
@@ -2394,6 +3710,7 @@ function toggleBlock(x, y, z, cur, quiet = false) {
   }
   world.set(k, next);
   edits.set(k, next);
+  markSaveDirty();
   const owned = chunkOwnedBlocks(...chunkOf(x, z)); if (owned) owned.add(k);
   markDirty(x, y, z);
   broadcastBlockEdit(x, y, z, next);
@@ -2420,6 +3737,24 @@ function togglePartyMode() {
   spawnConfettiBurst(p.x - 0.5, p.y - 0.8, p.z - 0.5, 30);
   setPrompt(partyModeT > 0 ? 'PARTY MODE!' : 'Party mode off', 1.3);
   addChatLine(null, partyModeT > 0 ? 'Disco sky enabled.' : 'Disco sky cooled down.');
+}
+
+function giftItem() {
+  if (!MULTIPLAYER || !multiplayerJoined) return;
+  const id = hotbar[currentSlot];
+  if (!id) { setPrompt('Nothing in hand to give', 1); return; }
+  const pos = controls.getObject().position;
+  let best = null, bestD = 7;
+  for (const entry of remotePlayers.values()) {
+    if (entry.player.teacher) continue;
+    const d = pos.distanceTo(entry.group.position);
+    if (d < bestD) { bestD = d; best = entry; }
+  }
+  if (!best) { setPrompt('No classmate nearby to give to', 1.2); return; }
+  const n = Number.isFinite(counts[currentSlot]) ? counts[currentSlot] : 1;
+  sendRoom({ type: 'item:gift', target: best.player.id, item: id, count: n });
+  setPslot(currentSlot, null, 0);
+  setPrompt(`Gave ${n} ${itemName(id)} to ${best.player.name}`, 1.5);
 }
 // ============================================================ held-item viewmodel
 const vmScene = new THREE.Scene();
@@ -2500,6 +3835,15 @@ function buildHeld(itemId) {
     c.position.set(0, 0, 0);
     c.rotation.set(0.4, 0.7, 0);
     vmHand.add(c);
+  } else if (isSpawnEgg(itemId)) {
+    const egg = SPAWN_EGGS[itemId];
+    const g = new THREE.Group();
+    // egg body (elongated sphere approximated with scaled boxes)
+    g.add(box(0.28, 0.34, 0.28, egg.kind.body, 0, 0.03, 0));
+    g.add(box(0.24, 0.20, 0.24, egg.kind.head, 0, 0.22, 0));  // lighter top
+    g.add(box(0.08, 0.08, 0.08, 0xffffff, 0.06, 0.18, 0.12)); // specular dot
+    g.rotation.set(0.2, 0.5, 0.1);
+    vmHand.add(g);
   } else {
     // material item / food: small held nugget
     const c = box(0.32, 0.32, 0.12, itemDef(itemId).color, 0, 0, 0);
@@ -2559,6 +3903,7 @@ function setPslot(i, id, n) {
   if (!id || n <= 0) { id = null; n = 0; }
   if (i < 9) { hotbar[i] = id; counts[i] = id ? n : 0; paintSlot(i); if (i === currentSlot) buildHeld(id); }
   else { const j = i - 9; store[j] = id; storeCounts[j] = id ? n : 0; }
+  markSaveDirty();
 }
 
 function tryRestockSlot(i, preferredId) {
@@ -2572,6 +3917,7 @@ function tryRestockSlot(i, preferredId) {
     paintSlot(i);
     if (i === currentSlot) buildHeld(hotbar[i]);
     renderOpen();
+    markSaveDirty();
     setPrompt(`Restocked ${itemName(preferredId)}`, 1.1);
     return true;
   }
@@ -2588,6 +3934,7 @@ function sortBackpack() {
   store.fill(null); storeCounts.fill(0);
   packed.forEach((s, j) => { store[j] = s.id; storeCounts[j] = s.n; });
   renderOpen();
+  markSaveDirty();
   setPrompt('Backpack sorted', 1.1);
 }
 function sortChest() {
@@ -2599,6 +3946,7 @@ function sortChest() {
   });
   for (let i = 0; i < 27; i++) chestSlots[i] = packed[i] ? { id: packed[i].id, n: packed[i].n } : { id: null, n: 0 };
   renderOpen();
+  markSaveDirty();
   setPrompt('Chest sorted', 1.1);
 }
 
@@ -2742,6 +4090,87 @@ function craftMatch() {
   }
   return null;
 }
+function recipeIngredients(r) {
+  const counts = new Map();
+  const add = (id) => counts.set(id, (counts.get(id) || 0) + 1);
+  if (r.shapeless) r.shapeless.forEach(add);
+  else recipeGrid(r).flat().forEach((id) => { if (id) add(id); });
+  return counts;
+}
+function recipeNeedsText(r) {
+  return [...recipeIngredients(r).entries()]
+    .map(([id, n]) => `${n} ${itemName(id)}`)
+    .join(', ');
+}
+function recipeFitsGrid(r, size) {
+  if (r.shapeless) return r.shapeless.length <= size * size;
+  const width = Math.max(...r.shape.map(row => row.length));
+  return r.shape.length <= size && width <= size;
+}
+function recipeSignature(r) {
+  return `${r.out[0]}:${r.out[1]}`;
+}
+function playerItemCount(id) {
+  let total = 0;
+  for (let i = 0; i < 36; i++) {
+    const s = pslot(i);
+    if (s.id === id) total += s.n;
+  }
+  return total;
+}
+function recipeCanCraft(r) {
+  if (!recipeFitsGrid(r, craftSize)) return false;
+  for (const [id, n] of recipeIngredients(r)) if (playerItemCount(id) < n) return false;
+  return true;
+}
+function takeFromPlayer(id, n) {
+  let need = n;
+  for (let i = 0; i < 36 && need > 0; i++) {
+    const s = pslot(i);
+    if (s.id !== id || !Number.isFinite(s.n)) continue;
+    const take = Math.min(need, s.n);
+    setPslot(i, s.n - take > 0 ? id : null, s.n - take);
+    need -= take;
+  }
+  return need === 0;
+}
+function clearCraftGridToInventory() {
+  for (let i = 0; i < 9; i++) {
+    const s = craftSlots[i];
+    if (!s.id) continue;
+    const remain = storeIntoPlayer(s.id, s.n);
+    if (remain > 0) {
+      s.n = remain;
+      setPrompt('No room to clear the crafting grid', 1.2);
+      return false;
+    }
+    s.id = null; s.n = 0;
+  }
+  return true;
+}
+function fillRecipe(r) {
+  if (cursor.id) { setPrompt('Place the held stack first', 1.1); return; }
+  if (!recipeFitsGrid(r, craftSize)) { setPrompt('Use a crafting table for that recipe', 1.2); return; }
+  if (!clearCraftGridToInventory()) { renderOpen(); return; }
+  if (!recipeCanCraft(r)) { renderOpen(); setPrompt('Missing ingredients', 1.1); return; }
+
+  const slots = craftSize === 2 ? [0, 1, 3, 4] : [0, 1, 2, 3, 4, 5, 6, 7, 8];
+  if (r.shapeless) {
+    r.shapeless.forEach((id, i) => {
+      if (takeFromPlayer(id, 1)) { craftSlots[slots[i]].id = id; craftSlots[slots[i]].n = 1; }
+    });
+  } else {
+    const grid = recipeGrid(r);
+    for (let row = 0; row < grid.length; row++) for (let col = 0; col < grid[row].length; col++) {
+      const id = grid[row][col];
+      if (!id) continue;
+      const idx = row * 3 + col;
+      if (takeFromPlayer(id, 1)) { craftSlots[idx].id = id; craftSlots[idx].n = 1; }
+    }
+  }
+  renderOpen();
+  setPrompt(`Loaded ${itemName(r.out[0])}`, 0.9);
+}
 function craftTake() {
   const r = craftMatch(); if (!r) return;
   const [oid, on] = r.out;
@@ -2780,6 +4209,7 @@ function updateFurnace(dt) {
   if (furCanSmelt()) {
     if (furBurn <= 0 && furFuel.id && FUEL[furFuel.id]) {
       furBurn = FUEL[furFuel.id]; furFuel.n--; if (furFuel.n <= 0) { furFuel.id = null; furFuel.n = 0; }
+      markSaveDirty();
     }
     if (furBurn > 0) {
       furProg += dt;
@@ -2788,6 +4218,7 @@ function updateFurnace(dt) {
         const o = SMELT[furInput.id];
         if (furOut.id === o) furOut.n++; else { furOut.id = o; furOut.n = 1; }
         furInput.n--; if (furInput.n <= 0) { furInput.id = null; furInput.n = 0; }
+        markSaveDirty();
         if (furnaceOpen) renderOpen();
       }
     } else furProg = Math.max(0, furProg - dt);
@@ -2801,6 +4232,8 @@ const furnaceEl = document.getElementById('furnaceUI');
 const chestEl = document.getElementById('chestUI');
 const cursorEl = document.getElementById('cursorItem');
 const furFlameEl = document.getElementById('furFlame');
+const recipeListEl = document.getElementById('recipeList');
+const recipeSearchEl = document.getElementById('recipeSearch');
 let furnaceOpen = false;
 // ---- chests: each placed chest has its own 27-slot storage keyed by position ----
 let chestOpen = false, chestKey = null, chestSlots = null, chestCells = [];
@@ -2812,7 +4245,7 @@ function getChestSlots(k) {
 const chestRef = (i) => ({
   source: 'chest',
   get: () => chestSlots[i],
-  set: (id, n) => { chestSlots[i] = (id && n > 0) ? { id, n } : { id: null, n: 0 }; },
+  set: (id, n) => { chestSlots[i] = (id && n > 0) ? { id, n } : { id: null, n: 0 }; markSaveDirty(); },
 });
 
 function paintIslot(el, item) {
@@ -2825,12 +4258,12 @@ function pushIntoChest(id, qty) {
   for (let i = 0; i < 27 && qty > 0; i++) {
     const s = chestSlots[i];
     if (s.id === id && Number.isFinite(s.n) && s.n < max) {
-      const add = Math.min(qty, max - s.n); chestSlots[i] = { id, n: s.n + add }; qty -= add;
+      const add = Math.min(qty, max - s.n); chestSlots[i] = { id, n: s.n + add }; qty -= add; markSaveDirty();
     }
   }
   for (let i = 0; i < 27 && qty > 0; i++) {
     const s = chestSlots[i];
-    if (!s.id) { const add = Math.min(qty, max); chestSlots[i] = { id, n: add }; qty -= add; }
+    if (!s.id) { const add = Math.min(qty, max); chestSlots[i] = { id, n: add }; qty -= add; markSaveDirty(); }
   }
   return qty;
 }
@@ -2838,13 +4271,13 @@ function pushIntoFurnace(id, qty) {
   if (SMELT[id]) {
     if (!furInput.id || furInput.id === id) {
       const add = Math.min(qty, 64 - furInput.n);
-      if (add > 0) { furInput.id = id; furInput.n += add; qty -= add; }
+      if (add > 0) { furInput.id = id; furInput.n += add; qty -= add; markSaveDirty(); }
     }
   }
   if (qty > 0 && FUEL[id]) {
     if (!furFuel.id || furFuel.id === id) {
       const add = Math.min(qty, 64 - furFuel.n);
-      if (add > 0) { furFuel.id = id; furFuel.n += add; qty -= add; }
+      if (add > 0) { furFuel.id = id; furFuel.n += add; qty -= add; markSaveDirty(); }
     }
   }
   return qty;
@@ -2914,7 +4347,45 @@ function rightSlotClick(ref) {   // right-click: drop one / pick up half
 
 const pRef = (i) => ({ source: 'player', get: () => pslot(i), set: (id, n) => setPslot(i, id, n) });
 const cRef = (i) => ({ source: 'craft', get: () => craftSlots[i], set: (id, n) => { craftSlots[i].id = id || null; craftSlots[i].n = id ? n : 0; } });
-const fRef = (o, source = 'furnace') => ({ source, get: () => o, set: (id, n) => { o.id = id || null; o.n = id ? n : 0; } });
+const fRef = (o, source = 'furnace') => ({ source, get: () => o, set: (id, n) => { o.id = id || null; o.n = id ? n : 0; markSaveDirty(); } });
+const BOOK_RECIPES = (() => {
+  const seen = new Set();
+  return RECIPES.filter((r) => {
+    const sig = recipeSignature(r);
+    if (seen.has(sig)) return false;
+    seen.add(sig);
+    return true;
+  });
+})();
+recipeSearchEl.addEventListener('input', () => renderRecipeBook());
+recipeSearchEl.addEventListener('keydown', (e) => e.stopPropagation());
+recipeSearchEl.addEventListener('mousedown', (e) => e.stopPropagation());
+function renderRecipeBook() {
+  if (!invOpen) return;
+  const q = recipeSearchEl.value.trim().toLowerCase();
+  const shown = BOOK_RECIPES
+    .filter((r) => recipeFitsGrid(r, craftSize))
+    .filter((r) => !q || itemName(r.out[0]).toLowerCase().includes(q) || recipeNeedsText(r).toLowerCase().includes(q))
+    .sort((a, b) => Number(recipeCanCraft(b)) - Number(recipeCanCraft(a)) || itemName(a.out[0]).localeCompare(itemName(b.out[0])));
+  recipeListEl.innerHTML = '';
+  if (!shown.length) {
+    recipeListEl.innerHTML = '<div class="emptyRecipe">No matching recipes</div>';
+    return;
+  }
+  for (const r of shown) {
+    const can = recipeCanCraft(r);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'recipeItem' + (can ? '' : ' locked');
+    btn.innerHTML =
+      `<div class="recipeIcon" style="${itemPreviewStyle(r.out[0])}"></div>` +
+      `<span><span class="recipeName">${itemName(r.out[0])}</span><span class="recipeNeed">${recipeNeedsText(r)}</span></span>` +
+      `<span class="recipeCount">${r.out[1] > 1 ? r.out[1] : ''}</span>`;
+    btn.addEventListener('mousedown', (e) => e.preventDefault());
+    btn.addEventListener('click', () => fillRecipe(r));
+    recipeListEl.appendChild(btn);
+  }
+}
 
 // build a backpack(27)+hotbar(9) pair of grids into the two given containers
 function buildPlayerGrids(backEl, hotEl) {
@@ -2973,6 +4444,7 @@ function renderOpen() {
   if (invOpen) for (const { el, ref } of invCells) paintIslot(el, ref.get());
   if (furnaceOpen) for (const { el, ref } of furCells) paintIslot(el, ref.get());
   if (chestOpen) for (const { el, ref } of chestCells) paintIslot(el, ref.get());
+  renderRecipeBook();
   if (cursor.id) {
     cursorEl.style.display = 'block';
     cursorEl.innerHTML =
@@ -2987,6 +4459,7 @@ addEventListener('mousemove', (e) => {
 function openInventory(size) {
   if (gameMode !== 'survival') return;
   craftSize = size; invOpen = true; lmbDown = false; resetMine();
+  document.getElementById('invTitle').textContent = size === 3 ? 'CRAFTING TABLE' : 'INVENTORY';
   buildInvDOM(); renderOpen();
   invEl.classList.add('open'); controls.unlock();
 }
@@ -3013,13 +4486,19 @@ function closeInvScreens() {
   invOpen = false; furnaceOpen = false; chestOpen = false; chestKey = null; chestSlots = null;
   invEl.classList.remove('open'); furnaceEl.classList.remove('open'); chestEl.classList.remove('open');
   cursorEl.style.display = 'none';
-  if (trackpadMode) renderer.domElement.focus(); else controls.lock();
+  if (trackpadMode && cursorUIMode) renderer.domElement.focus(); else controls.lock();
 }
 
 // ============================================================ persistence
-function saveGame() {
+let lastSavedPlayer = null;
+function saveGame(force = false) {
   if (MULTIPLAYER) return;
   const p = controls.getObject().position;
+  if (!force && lastSavedPlayer) {
+    const moved = Math.hypot(p.x - lastSavedPlayer.x, p.y - lastSavedPlayer.y, p.z - lastSavedPlayer.z) > 1;
+    if (moved) saveDirty = true;
+  }
+  if (!force && !saveDirty) return;
   const data = {
     edits: [...edits.entries()],
     hotbar: [...hotbar],
@@ -3036,9 +4515,16 @@ function saveGame() {
     player: { x: p.x, y: p.y, z: p.z }
   };
   localStorage.setItem('mc_save_v1', JSON.stringify(data));
+  lastSavedPlayer = { x: p.x, y: p.y, z: p.z };
+  saveDirty = false;
 }
-addEventListener('beforeunload', saveGame);
-setInterval(saveGame, 10000);
+function scheduleSaveGame(force = false) {
+  if (MULTIPLAYER) return;
+  if ('requestIdleCallback' in window && !force) window.requestIdleCallback(() => saveGame(false), { timeout: 2000 });
+  else setTimeout(() => saveGame(force), 0);
+}
+addEventListener('beforeunload', () => saveGame(true));
+setInterval(() => scheduleSaveGame(false), 10000);
 
 ;(function loadGame() {
   if (MULTIPLAYER) return;
@@ -3071,6 +4557,9 @@ setInterval(saveGame, 10000);
   hotbar.forEach((_, i) => paintSlot(i));
   if (typeof data.currentSlot === 'number') selectSlot(data.currentSlot);
   if (data.player) controls.getObject().position.set(data.player.x, data.player.y, data.player.z);
+  const p = controls.getObject().position;
+  lastSavedPlayer = { x: p.x, y: p.y, z: p.z };
+  saveDirty = false;
 })();
 
 // Generate the 3x3 chunks around SPAWN so there is ground underfoot on (re)spawn.
@@ -3088,22 +4577,76 @@ function ensureSpawnChunks() {
 })();
 
 const menuGrid = document.getElementById('menuGrid');
-for (const id of [...Object.keys(TOOLS), ...Object.keys(ITEMS), ...Object.keys(FOODS), ...TYPES]) {
-  if (OPEN_TYPES.has(id)) continue;   // open door/trapdoor are internal states, not buildable items
-  const tile = document.createElement('div');
-  tile.className = 'tile';
-  tile.innerHTML = `<div class="chip" style="${itemPreviewStyle(id)}"></div><span class="label">${itemName(id)}</span>`;
-  tile.addEventListener('click', () => { hotbar[currentSlot] = id; counts[currentSlot] = Infinity; paintSlot(currentSlot); buildHeld(id); closeMenu(); });
-  menuGrid.appendChild(tile);
+const creativeTabsEl = document.getElementById('creativeTabs');
+const creativeSearchEl = document.getElementById('creativeSearch');
+let creativeTab = 'all';
+const CREATIVE_GROUPS = [
+  { id: 'all', label: 'All', test: () => true },
+  { id: 'blocks', label: 'Blocks', test: (id) => isBlock(id) },
+  { id: 'tools', label: 'Tools', test: (id) => isTool(id) },
+  { id: 'materials', label: 'Materials', test: (id) => id in ITEMS },
+  { id: 'food', label: 'Food', test: (id) => isFood(id) },
+  { id: 'mobs', label: 'Mobs', test: (id) => isSpawnEgg(id) },
+];
+const CREATIVE_ITEMS = [...Object.keys(TOOLS), ...Object.keys(ITEMS), ...Object.keys(FOODS), ...TYPES, ...Object.keys(SPAWN_EGGS)]
+  .filter((id) => !OPEN_TYPES.has(id));
+function giveCreativeItem(id) {
+  hotbar[currentSlot] = id;
+  counts[currentSlot] = Infinity;
+  paintSlot(currentSlot);
+  buildHeld(id);
+  markSaveDirty();
+  closeMenu();
 }
+function renderCreativeTabs() {
+  creativeTabsEl.innerHTML = '';
+  for (const group of CREATIVE_GROUPS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'tab' + (group.id === creativeTab ? ' active' : '');
+    btn.textContent = group.label;
+    btn.addEventListener('click', () => {
+      creativeTab = group.id;
+      renderCreativeTabs();
+      renderCreativeMenu();
+    });
+    creativeTabsEl.appendChild(btn);
+  }
+}
+function renderCreativeMenu() {
+  const q = creativeSearchEl.value.trim().toLowerCase();
+  const group = CREATIVE_GROUPS.find(g => g.id === creativeTab) || CREATIVE_GROUPS[0];
+  const items = CREATIVE_ITEMS
+    .filter((id) => group.test(id))
+    .filter((id) => !q || itemName(id).toLowerCase().includes(q) || id.includes(q))
+    .sort((a, b) => itemName(a).localeCompare(itemName(b)));
+  menuGrid.innerHTML = '';
+  if (!items.length) {
+    menuGrid.innerHTML = '<div class="emptyRecipe">No matching items</div>';
+    return;
+  }
+  for (const id of items) {
+    const tile = document.createElement('div');
+    tile.className = 'tile';
+    tile.title = itemName(id);
+    tile.innerHTML = `<div class="chip" style="${itemPreviewStyle(id)}"></div><span class="label">${itemName(id)}</span>`;
+    tile.addEventListener('click', () => giveCreativeItem(id));
+    menuGrid.appendChild(tile);
+  }
+}
+creativeSearchEl.addEventListener('input', renderCreativeMenu);
+creativeSearchEl.addEventListener('keydown', (e) => e.stopPropagation());
+creativeSearchEl.addEventListener('mousedown', (e) => e.stopPropagation());
+renderCreativeTabs();
+renderCreativeMenu();
 function toggleMenu() {
   if (gameMode !== 'creative') { if (menuOpen) closeMenu(); return; }   // survival has no creative menu
   menuOpen ? closeMenu() : openMenu();
 }
-function openMenu() { menuOpen = true; menu.classList.remove('hidden'); controls.unlock(); }
+function openMenu() { menuOpen = true; renderCreativeMenu(); menu.classList.remove('hidden'); controls.unlock(); }
 function closeMenu() {
   menuOpen = false; menu.classList.add('hidden');
-  if (trackpadMode) renderer.domElement.focus();
+  if (trackpadMode && cursorUIMode) renderer.domElement.focus();
   else controls.lock();
 }
 
@@ -3150,12 +4693,16 @@ function labelSprite(name, color) {
 function makeRemoteAvatar(player) {
   const color = new THREE.Color(player.color || '#66d9ef').getHex();
   const group = new THREE.Group();
-  group.add(box(0.55, 0.9, 0.32, color, 0, 0.85, 0));
-  group.add(box(0.42, 0.42, 0.42, 0xf0c7a0, 0, 1.55, 0));
-  group.add(box(0.18, 0.75, 0.2, color, -0.45, 0.85, 0));
-  group.add(box(0.18, 0.75, 0.2, color, 0.45, 0.85, 0));
-  group.add(box(0.2, 0.75, 0.22, 0x283342, -0.16, 0.12, 0));
-  group.add(box(0.2, 0.75, 0.22, 0x283342, 0.16, 0.12, 0));
+  const parts = [
+    box(0.55, 0.9, 0.32, color, 0, 0.85, 0),
+    box(0.42, 0.42, 0.42, 0xf0c7a0, 0, 1.55, 0),
+    box(0.18, 0.75, 0.2, color, -0.45, 0.85, 0),
+    box(0.18, 0.75, 0.2, color, 0.45, 0.85, 0),
+    box(0.2, 0.75, 0.22, 0x283342, -0.16, 0.12, 0),
+    box(0.2, 0.75, 0.22, 0x283342, 0.16, 0.12, 0),
+  ];
+  parts.forEach(p => { p.material = p.material.clone(); group.add(p); });   // per-instance, see buildBody
+  group.userData.parts = parts;
   group.add(labelSprite(player.name || 'Student', player.color || '#66d9ef'));
   group.userData.target = new THREE.Vector3();
   scene.add(group);
@@ -3166,7 +4713,7 @@ function upsertRemotePlayer(player) {
   if (!player || player.id === localPlayerId) return;
   let entry = remotePlayers.get(player.id);
   if (!entry) {
-    entry = { player, group: makeRemoteAvatar(player), target: new THREE.Vector3(), mode: 'survival' };
+    entry = { player, group: makeRemoteAvatar(player), target: new THREE.Vector3(), mode: 'survival', hitT: 0 };
     entry.group.userData.playerId = player.id;
     remotePlayers.set(player.id, entry);
   }
@@ -3179,6 +4726,12 @@ function upsertRemotePlayer(player) {
   paintStudentList();
 }
 
+function flashRemotePlayer(id) {
+  const entry = remotePlayers.get(id);
+  if (!entry) return;
+  entry.hitT = 0.18;
+  for (const p of entry.group.userData.parts) p.material.emissive.setHex(0xff2222);
+}
 function removeRemotePlayer(id) {
   const entry = remotePlayers.get(id);
   if (!entry) return;
@@ -3216,10 +4769,12 @@ function applySharedBlockEdit(x, y, z, type) {
   if (type === null) {
     world.delete(k);
     edits.set(k, null);
+    markSaveDirty();
     const owned = chunkOwnedBlocks(...chunkOf(x, z)); if (owned) owned.delete(k);
   } else {
     world.set(k, type);
     edits.set(k, type);
+    markSaveDirty();
     const owned = chunkOwnedBlocks(...chunkOf(x, z)); if (owned) owned.add(k);
   }
   markDirty(x, y, z);
@@ -3227,6 +4782,7 @@ function applySharedBlockEdit(x, y, z, type) {
 
 function resetSharedWorld() {
   edits.clear();
+  markSaveDirty();
   for (const ck of [...loaded]) {
     const [cx, cz] = ck.split(',').map(Number);
     unloadChunk(cx, cz);
@@ -3254,6 +4810,12 @@ const roomMessageHandlers = {
   'room:init'(message) {
     localPlayerId = message.id;
     multiplayerJoined = true;
+    // server is authoritative on teacher status — demote if a teacher already exists
+    if (IS_TEACHER && message.teacher === false) {
+      IS_TEACHER = false;
+      teacherPanel.classList.add('hidden');
+      setPrompt('A teacher is already connected — joined as a student.', 4);
+    }
     joinEl.classList.add('hidden');
     setMpStatus(IS_TEACHER ? 'Teacher host connected' : 'Class world connected');
     for (const edit of message.edits || []) {
@@ -3262,10 +4824,16 @@ const roomMessageHandlers = {
     }
     for (const player of message.players || []) upsertRemotePlayer(player);
     syncNetMobs(message.mobs || []);
+    if (message.quest) updateQuestDisplay(message.quest);
+    if (message.leaderboard) updateLeaderboard(message.leaderboard);
     if (IS_TEACHER) { teacherPanel.classList.remove('hidden'); paintStudentList(); }
   },
+  'leaderboard:update'(message) { updateLeaderboard(message.players || []); },
+  'boss:fireball'(message) { spawnNetFireball(message); },
+  'boss:telegraph'(message) { spawnBossTelegraph(message); },
   'player:joined'(message) { upsertRemotePlayer(message.player); },
   'player:left'(message) { removeRemotePlayer(message.id); },
+  'player:hurt'(message) { flashRemotePlayer(message.id); },
   'player:update'(message) {
     const entry = remotePlayers.get(message.id);
     if (entry && message.transform) {
@@ -3281,6 +4849,17 @@ const roomMessageHandlers = {
   'world:reset'() { resetSharedWorld(); },
   'teacher:teleport'(message) { if (message.transform) teleportTo(message.transform); },
   'mode:set'(message) { setMode(message.mode === 'creative' ? 'creative' : 'survival'); },
+  'quest:update'(message) { if (message.quest) updateQuestDisplay(message.quest); },
+  'quest:done'(message) {
+    updateQuestDisplay({ active: false });
+    showToast('QUEST COMPLETE!', message.label || '', 4);
+    const p = controls.getObject().position;
+    spawnConfettiBurst(p.x - 0.5, p.y - 0.8, p.z - 0.5, 40);
+  },
+  'item:received'(message) {
+    addToInventory(message.item, message.count, { notify: false });
+    showToast(`Gift from ${message.from}!`, `+${message.count} ${itemName(message.item)}`, 2.5);
+  },
   chat(message) {
     const e = remotePlayers.get(message.id);
     const nm = message.name || (e && e.player.name) || 'Player';
@@ -3340,7 +4919,13 @@ function syncMultiplayer(dt) {
     syncT = 0.1;
     sendRoom({ type: 'player:update', transform: localTransform() });
   }
-  for (const entry of remotePlayers.values()) entry.group.position.lerp(entry.target, 1 - Math.exp(-dt / 0.12));
+  for (const entry of remotePlayers.values()) {
+    entry.group.position.lerp(entry.target, 1 - Math.exp(-dt / 0.12));
+    if (entry.hitT > 0) {
+      entry.hitT -= dt;
+      if (entry.hitT <= 0) for (const p of entry.group.userData.parts) p.material.emissive.setHex(0x000000);
+    }
+  }
 }
 
 function broadcastBlockEdit(x, y, z, type) {
@@ -3368,7 +4953,7 @@ function attackRemoteMob(mob, dmg, dir) {
 }
 // ---- server-authoritative mobs (multiplayer) ----
 const KIND_BY_NAME = {};
-for (const k of [...PASSIVE_KINDS, ...HOSTILE_KINDS, BIRD_KIND]) KIND_BY_NAME[k.name] = k;
+for (const k of [...PASSIVE_KINDS, ...HOSTILE_KINDS, BIRD_KIND, COLOSSUS_KIND]) KIND_BY_NAME[k.name] = k;
 const netMobs = new Map();          // id -> render entry for a server-driven mob
 const netMobGroups = [];
 let lastHitBy = null;
@@ -3376,9 +4961,10 @@ let lastHitBy = null;
 function makeNetMob(info) {
   const kind = KIND_BY_NAME[info.kind] || HOSTILE_KINDS[0];
   const { g, parts } = buildBody(kind);
+  if (kind.shape === 'colossus') g.scale.setScalar(1.6);   // a boss should tower over players
   g.position.set(info.x, info.y + 0.2, info.z);
   scene.add(g);
-  const m = { netId: info.id, group: g, parts, kind, hp: info.hp, hitT: 0,
+  const m = { netId: info.id, group: g, parts, kind, hp: info.hp, maxhp: info.max || kind.hp, hitT: 0,
               target: new THREE.Vector3(info.x, info.y + 0.2, info.z), targetYaw: info.yaw };
   g.userData.mob = m;               // nearestMob() returns this; meleeAttack reads m.netId
   netMobs.set(info.id, m);
@@ -3399,20 +4985,96 @@ function syncNetMobs(list) {
     if (!m) m = makeNetMob(info);
     m.target.set(info.x, info.y + 0.2, info.z);
     m.targetYaw = info.yaw; m.hp = info.hp;
+    m.bossState = info.st;   // colossus phase ('pursue'|'wind'|'rest'); undefined for normal mobs
     if (info.fuse) setEmissive(m, (Math.floor(performance.now() / 120) % 2) ? 0x66ff33 : 0x000000);
-    else if (m.hitT <= 0) setEmissive(m, 0x000000);
+    else if (!m.bossState && m.hitT <= 0) setEmissive(m, 0x000000);  // boss tint handled per-frame
   }
   for (const id of [...netMobs.keys()]) if (!seen.has(id)) removeNetMob(id);
 }
 function updateNetMobs(dt) {
   const a = 1 - Math.exp(-dt / 0.12);
+  const now = performance.now();
   for (const m of netMobs.values()) {
+    const moving = m.group.position.distanceTo(m.target) > 0.03;
     m.group.position.lerp(m.target, a);
     m.group.rotation.y = -m.targetYaw + Math.PI / 2;
-    if (m.hitT > 0) { m.hitT -= dt; if (m.hitT <= 0) setEmissive(m, 0x000000); }
+    animateWalk(m, moving, dt);
+    if (m.hitT > 0) { m.hitT -= dt; if (m.hitT <= 0 && !m.bossState) setEmissive(m, 0x000000); }
+    // boss phase tint: red while winding up an attack, blue when resting/vulnerable
+    if (m.bossState && m.hitT <= 0) {
+      if (m.bossState === 'wind') setEmissive(m, (Math.floor(now / 90) % 2) ? 0xff4400 : 0x551100);
+      else if (m.bossState === 'rest') setEmissive(m, (Math.floor(now / 220) % 2) ? 0x2a88ff : 0x10408a);
+      else setEmissive(m, 0x000000);
+    }
   }
 }
-function flashNetMob(id) { const m = netMobs.get(id); if (m) { m.hitT = 0.18; setEmissive(m, 0x888888); } }
+function flashNetMob(id) { const m = netMobs.get(id); if (m) { m.hitT = 0.18; setEmissive(m, 0xff2222); } }
+
+// ---- server-driven boss fireballs (visual only — the server already resolves
+// the hit and sends a 'hurt' message; this just animates what players see) ----
+const netFireballs = [];
+function spawnNetFireball(info) {
+  const start = new THREE.Vector3(info.x, info.y, info.z);
+  const target = new THREE.Vector3(info.tx, info.ty + 0.6, info.tz);
+  const dir = target.clone().sub(start);
+  const dist = dir.length();
+  dir.normalize();
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff5a1a }));
+  m.position.copy(start);
+  scene.add(m);
+  netFireballs.push({ m, vel: dir.multiplyScalar(26), life: Math.max(0.4, dist / 26) });
+}
+function updateNetFireballs(dt) {
+  for (let i = netFireballs.length - 1; i >= 0; i--) {
+    const f = netFireballs[i];
+    f.m.position.addScaledVector(f.vel, dt);
+    f.life -= dt;
+    if (f.life <= 0) {
+      spawnParticles(f.m.position.x - 0.5, f.m.position.y, f.m.position.z - 0.5, 0xff7a1a, 10);
+      scene.remove(f.m);
+      netFireballs.splice(i, 1);
+    }
+  }
+}
+
+// ---- boss attack telegraphs: pulsing ground danger zones that warn players
+// before a strike lands. Purely visual; the server resolves the actual damage
+// when the wind-up ends (which coincides with the telegraph expiring). ----
+const bossTelegraphs = [];
+function spawnBossTelegraph(info) {
+  const color = info.color || 0xff3a1a;
+  for (const s of (info.spots || [])) {
+    const geo = new THREE.CircleGeometry(s.r, 36);
+    const mat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.28, side: THREE.DoubleSide, depthWrite: false });
+    const disc = new THREE.Mesh(geo, mat);
+    disc.rotation.x = -Math.PI / 2;
+    disc.position.set(s.x, ARENA.floorY + 1.04, s.z);
+    scene.add(disc);
+    // a bright rim that closes inward like a countdown
+    const rimGeo = new THREE.RingGeometry(s.r * 0.92, s.r, 36);
+    const rimMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85, side: THREE.DoubleSide, depthWrite: false });
+    const rim = new THREE.Mesh(rimGeo, rimMat);
+    rim.rotation.x = -Math.PI / 2;
+    rim.position.set(s.x, ARENA.floorY + 1.05, s.z);
+    scene.add(rim);
+    bossTelegraphs.push({ disc, rim, t: 0, dur: Math.max(0.3, info.dur || 1.4), r: s.r, x: s.x, z: s.z, color });
+  }
+}
+function updateBossTelegraphs(dt) {
+  for (let i = bossTelegraphs.length - 1; i >= 0; i--) {
+    const tg = bossTelegraphs[i];
+    tg.t += dt;
+    const f = Math.min(1, tg.t / tg.dur);
+    tg.disc.material.opacity = 0.22 + 0.4 * f + 0.12 * Math.sin(tg.t * 22);  // intensify + pulse
+    tg.rim.scale.setScalar(1 - 0.85 * f);                                    // rim shrinks toward impact
+    if (tg.t >= tg.dur) {
+      spawnParticles(tg.x - 0.5, ARENA.floorY + 1, tg.z - 0.5, tg.color, 22);  // impact burst
+      scene.remove(tg.disc); tg.disc.geometry.dispose();
+      scene.remove(tg.rim); tg.rim.geometry.dispose();
+      bossTelegraphs.splice(i, 1);
+    }
+  }
+}
 
 function applyServerHurt(msg) {
   if (gameMode !== 'survival' || dead) return;
@@ -3439,7 +5101,7 @@ function openChat() {
 }
 function closeChat() {
   chatOpen = false; chatInputEl.style.display = 'none'; chatInputEl.blur();
-  if (!trackpadMode && !invOpen && !furnaceOpen && !chestOpen && !menuOpen && !dead) controls.lock();
+  if (!invOpen && !furnaceOpen && !chestOpen && !menuOpen && !dead && !(trackpadMode && cursorUIMode)) controls.lock();
 }
 function submitChat() {
   const text = chatInputEl.value.trim();
@@ -3500,12 +5162,59 @@ if (MULTIPLAYER) {
   teleportAllBtn.addEventListener('click', () => {
     sendRoom({ type: 'teacher:teleportAll', transform: localTransform() });
   });
+  document.getElementById('setQuestBtn').addEventListener('click', () => {
+    const qtype = document.getElementById('questType').value;
+    const target = Number(document.getElementById('questTarget').value) || 30;
+    const labels = { mine: `Mine ${target} blocks`, build: `Place ${target} blocks`, kill: `Defeat ${target} mobs` };
+    sendRoom({ type: 'teacher:setQuest', qtype, target, label: labels[qtype] || '' });
+  });
+  document.getElementById('clearQuestBtn').addEventListener('click', () => {
+    sendRoom({ type: 'teacher:clearQuest' });
+  });
+  document.getElementById('spawnBossBtn').addEventListener('click', () => {
+    if (confirm('Spawn a boss Dragon for the whole class to fight?')) sendRoom({ type: 'teacher:spawnBoss' });
+  });
+  document.getElementById('tpArenaBtn').addEventListener('click', () => {
+    const t = { x: ARENA.x + 0.5, y: ARENA.floorY + 1 + PLAYER_H, z: ARENA.z + 0.5, yaw: 0, pitch: 0 };
+    teleportTo(t);
+    sendRoom({ type: 'teacher:teleportAll', transform: t });
+  });
+  document.getElementById('tpBackBtn').addEventListener('click', () => {
+    const t = { x: SPAWN.x, y: SPAWN.y, z: SPAWN.z, yaw: 0, pitch: 0 };
+    teleportTo(t);
+    sendRoom({ type: 'teacher:teleportAll', transform: t });
+  });
+  document.getElementById('spawnArenaBossBtn').addEventListener('click', () => {
+    if (confirm('Spawn the Arena Dragon? Make sure the class is in the arena first.')) sendRoom({ type: 'teacher:spawnArenaBoss' });
+  });
+  document.getElementById('spawnColossusBtn').addEventListener('click', () => {
+    if (confirm('Summon the Magma Colossus? It telegraphs its attacks — students should strike it only when it rests. Make sure the class is in the arena first.')) sendRoom({ type: 'teacher:spawnArenaColossus' });
+  });
 }
 
 // ============================================================ weather + shooting stars + boss bar
 const bossBarEl = document.getElementById('bossBar');
 const bossBarNameEl = document.getElementById('bossBarName');
 const bossBarFillEl = document.getElementById('bossBarFill');
+const questBarEl = document.getElementById('questBar');
+const questBarNameEl = document.getElementById('questBarName');
+const questBarTextEl = document.getElementById('questBarText');
+const questBarFillEl = document.getElementById('questBarFill');
+let classQuest = { active: false, type: '', label: '', target: 0, progress: 0 };
+function updateQuestDisplay(q) {
+  classQuest = q;
+  if (!q || !q.active) { questBarEl.classList.add('hidden'); return; }
+  questBarEl.classList.remove('hidden');
+  questBarNameEl.textContent = q.label.toUpperCase();
+  questBarTextEl.textContent = `${q.progress} / ${q.target}`;
+  questBarFillEl.style.width = Math.min(100, q.progress / q.target * 100) + '%';
+}
+function updateLeaderboard(players) {
+  const rows = [...players].sort((a, b) => b.kills - a.kills);
+  leaderboardBodyEl.innerHTML = rows.map(p =>
+    `<tr><td>${esc(p.name)}</td><td>${p.kills}</td><td>${p.blocksPlaced}</td><td>${p.quest}</td></tr>`
+  ).join('');
+}
 const toastEl = document.getElementById('toast');
 const toastTitleEl = document.getElementById('toastTitle');
 const toastSubEl = document.getElementById('toastSub');
@@ -3595,32 +5304,46 @@ function updateShootingStars(dt) {
 }
 
 function updateBossBar() {
-  const BOSS_KINDS = new Set(['Dragon', 'Hydra']);
+  const BOSS_KINDS = new Set(['Dragon', 'Hydra', 'Colossus']);
   const pp = controls.getObject().position;
   let best = null;
   for (const mob of mobs) {
     if (!BOSS_KINDS.has(mob.kind.name)) continue;
     const d = mob.group.position.distanceTo(pp);
-    if (d < mob.kind.detect * 1.6 && (!best || d < best.d)) best = { mob, d };
+    if (d < mob.kind.detect * 1.6 && (!best || d < best.d))
+      best = { name: mob.kind.name, hp: mob.hp, maxhp: mob.kind.hp, d };
+  }
+  for (const m of netMobs.values()) {
+    if (!BOSS_KINDS.has(m.kind.name)) continue;
+    const d = m.group.position.distanceTo(pp);
+    if (!best || d < best.d)
+      best = { name: m.kind.name, hp: m.hp, maxhp: m.maxhp, d, state: m.bossState };
   }
   if (best) {
     bossBarEl.classList.remove('hidden');
-    bossBarNameEl.textContent = best.mob.kind.name.toUpperCase();
-    const pct = Math.max(0, best.mob.hp / best.mob.kind.hp * 100).toFixed(1);
-    bossBarFillEl.style.width = pct + '%';
+    let label = best.name.toUpperCase();
+    if (best.state === 'wind') label += ' — ⚠ CHARGING';
+    else if (best.state === 'rest') label += ' — 💤 VULNERABLE! ATTACK!';
+    bossBarNameEl.textContent = label;
+    bossBarFillEl.style.width = Math.max(0, best.hp / best.maxhp * 100).toFixed(1) + '%';
+    bossBarFillEl.style.background = best.state === 'rest' ? '#2a88ff' : '';
   } else {
     bossBarEl.classList.add('hidden');
   }
 }
 
 // ============================================================ loop
-const MAX_SIM_DT = 1 / 90;
-const MAX_SIM_SLICES = 5;
-let prev = performance.now(), fps = 60, infoT = 0;
+const FIXED_SIM_DT = 1 / 60;
+const MAX_SIM_SLICES = 4;
+let prev = performance.now(), simAccumulator = 0, fps = 60, infoT = 0;
+const _skyMoonOffset = new THREE.Vector3(-145, 128, -255);
+const _moveFwd = new THREE.Vector3();
+const _moveRight = new THREE.Vector3();
+const _moveVec = new THREE.Vector3();
+const _desiredMove = new THREE.Vector3();
 
-function tickFrame(dt, frameDt) {
+function tickFrame(dt) {
   clock += dt;
-  fps += ((1 / Math.max(dt, 0.0001)) - fps) * 0.1;
 
   // day/night plus space ambience: sky darkens, stars fade in, gravity weakens with altitude
   const camY = controls.getObject().position.y;
@@ -3645,7 +5368,7 @@ function tickFrame(dt, frameDt) {
   hemi.intensity = 0.25 + daylight * 0.65 + sf * 0.15;
   sun.intensity = 0.08 + daylight * 0.9;
   sunOrbitOffset.set(Math.cos(dayAngle) * 80, Math.max(18, sunLift * 110), Math.sin(dayAngle) * 55);
-  skyMoon.position.copy(controls.getObject().position).add(new THREE.Vector3(-145, 128, -255));
+  skyMoon.position.copy(controls.getObject().position).add(_skyMoonOffset);
   skyMoon.lookAt(controls.getObject().position);
   skyMoon.userData.moonMat.opacity = 0.34 + sf * 0.38;
   skyMoon.userData.craterMat.opacity = 0.28 + sf * 0.22;
@@ -3665,13 +5388,13 @@ function tickFrame(dt, frameDt) {
     // gravity strength: fixed & controllable on a cube planet, else weakens with altitude
     const gNow = curPlanet ? PLANET_GRAVITY : gEff;
     // movement basis lives in the plane perpendicular to gUp
-    const fwd = new THREE.Vector3();
+    const fwd = _moveFwd.set(0, 0, 0);
     camera.getWorldDirection(fwd);
     fwd.addScaledVector(gUp, -fwd.dot(gUp));
     if (fwd.lengthSq() < 1e-4) { camera.getWorldDirection(fwd); }   // looking straight up/down: any tangent
     fwd.normalize();
-    const right = new THREE.Vector3().crossVectors(fwd, gUp).normalize();
-    const move = new THREE.Vector3();
+    const right = _moveRight.crossVectors(fwd, gUp).normalize();
+    const move = _moveVec.set(0, 0, 0);
     if (keys['KeyW']) move.add(fwd);
     if (keys['KeyS']) move.sub(fwd);
     if (keys['KeyD']) move.add(right);
@@ -3681,7 +5404,7 @@ function tickFrame(dt, frameDt) {
     const sprinting = !flying && !inWater && gameMode === 'survival' && hunger > 6 &&
       (keys['ControlLeft'] || keys['ControlRight']) && keys['KeyW'] && wantsMove;
     const targetSpeed = flying ? FLY : inWater ? SWIM : sprinting ? SPRINT : WALK;
-    const desired = new THREE.Vector3();
+    const desired = _desiredMove.set(0, 0, 0);
     if (move.lengthSq() > 0) desired.copy(move).normalize().multiplyScalar(targetSpeed);
     const accel = wantsMove ? (inWater ? 9 : grounded(pos) ? 32 : 12) : (inWater ? 7 : grounded(pos) ? 24 : 4);
     const blend = 1 - Math.exp(-accel * dt);
@@ -3783,17 +5506,22 @@ function tickFrame(dt, frameDt) {
   updateArrows(dt);
   updateBullets(dt);
   updateFireballs(dt);
+  updateNetFireballs(dt);
+  updateBossTelegraphs(dt);
   updateLeftAction(dt);
   updateAutoToggles(dt);
   updateWeather(dt);
   updateShootingStars(dt);
-  updateBossBar();
   updateFurnace(dt);
-  updateViewmodel(dt);
-  syncMultiplayer(dt);
-  updatePrompt(dt);
+}
 
-  infoT += dt;
+function updateRenderFrame(frameDt) {
+  fps += ((1 / Math.max(frameDt, 0.0001)) - fps) * 0.1;
+  updateBossBar();
+  updateViewmodel(frameDt);
+  syncMultiplayer(frameDt);
+  updatePrompt(frameDt);
+  infoT += frameDt;
   if (infoT > 0.25) {
     infoT = 0;
     const p = controls.getObject().position;
@@ -3801,7 +5529,7 @@ function tickFrame(dt, frameDt) {
       `${gameMode === 'survival' ? 'SURVIVAL' : 'CREATIVE'}   ${isNight ? 'NIGHT' : 'DAY'}   FPS ${fps.toFixed(0)}\n` +
       `XYZ ${p.x.toFixed(1)} ${(p.y - PLAYER_H).toFixed(1)} ${p.z.toFixed(1)}\n` +
       `Mobs ${mobs.length + netMobs.size}   Scale ${renderPixelRatio.toFixed(2)}` +
-      (flying ? '   FLYING' : trackpadMode ? '   TRACKPAD LOOK' : '');
+      (flying ? '   FLYING' : cursorUIMode ? '   CURSOR' : trackpadMode ? '   TRACKPAD LOOK' : '');
     updateLocator();
   }
 }
@@ -3821,29 +5549,73 @@ function tuneRenderScale(dt, frameDt) {
   renderer.setSize(innerWidth, innerHeight, false);
 }
 
+let perfEl = null, perfT = 0;
+const perfFrames = [];
+if (PERF) {
+  perfEl = document.createElement('pre');
+  perfEl.style.cssText = [
+    'position:fixed',
+    'right:10px',
+    'top:10px',
+    'z-index:30',
+    'margin:0',
+    'padding:8px 10px',
+    'background:rgba(0,0,0,0.7)',
+    'color:#d8ffe1',
+    'font:12px/1.35 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace',
+    'border:1px solid rgba(255,255,255,0.18)',
+    'pointer-events:none',
+  ].join(';');
+  document.body.appendChild(perfEl);
+}
+
+function updatePerfOverlay(frameDt) {
+  if (!PERF || !perfEl) return;
+  perfFrames.push(frameDt * 1000);
+  if (perfFrames.length > 180) perfFrames.shift();
+  perfT += frameDt;
+  if (perfT < 0.5) return;
+  perfT = 0;
+  const sorted = [...perfFrames].sort((a, b) => a - b);
+  const p95 = sorted[Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95))] || 0;
+  const infoRender = renderer.info.render;
+  const infoMem = renderer.info.memory;
+  perfEl.textContent =
+    `FPS ${fps.toFixed(0)}  p95 ${p95.toFixed(1)}ms  scale ${renderPixelRatio.toFixed(2)}\n` +
+    `chunks ${loaded.size}  radius ${chunkRadius}  queue ${chunkLoadQueue.length}  dirty ${dirty.size}\n` +
+    `chunk ${perfStats.chunkMs.toFixed(1)}ms/${perfStats.chunksGenerated}  mesh ${perfStats.meshMs.toFixed(1)}ms  dirtyBuilt ${perfStats.dirtyBuilt}\n` +
+    `draw ${infoRender.calls}  tris ${infoRender.triangles}  geo ${infoMem.geometries}  tex ${infoMem.textures}\n` +
+    `mobs ${mobs.length + netMobs.size}  particles ${particles.length}  pool ${particlePool.length}`;
+  perfStats.chunkMs = 0;
+  perfStats.meshMs = 0;
+  perfStats.dirtyBuilt = 0;
+  perfStats.chunksGenerated = 0;
+}
+
 function animate() {
   requestAnimationFrame(animate);
   const now = performance.now();
   const frameDt = Math.min((now - prev) / 1000, 0.08);
   prev = now;
-  let remaining = frameDt;
+  simAccumulator = Math.min(simAccumulator + frameDt, FIXED_SIM_DT * MAX_SIM_SLICES);
   let slices = 0;
-  while (remaining > 0 && slices < MAX_SIM_SLICES) {
-    const step = Math.min(remaining, MAX_SIM_DT);
-    tickFrame(step, frameDt);
-    remaining -= step;
+  while (simAccumulator >= FIXED_SIM_DT && slices < MAX_SIM_SLICES) {
+    tickFrame(FIXED_SIM_DT);
+    simAccumulator -= FIXED_SIM_DT;
     slices++;
   }
-  if (remaining > 0) tickFrame(remaining, frameDt);
-  const chunkBudget = frameDt < 0.012 ? 3 : frameDt < 0.02 ? 2 : 1;
-  streamChunks(chunkBudget);
-  flushDirty(frameDt < 0.018 ? 3 : 1);
+  updateRenderFrame(frameDt);
+  adaptChunkRadius(frameDt, frameDt);
+  streamChunks(frameDt < 0.018 ? 3.5 : 2);
+  flushDirty(frameDt < 0.018 ? 2.5 : 1.25, frameDt < 0.018 ? 4 : 2);
+  updateChunkVisibility();
   tuneRenderScale(frameDt, frameDt);
   if (location.search.includes('norender')) return;
   renderer.clear();
   renderer.render(scene, camera);
   renderer.clearDepth();
   renderer.render(vmScene, vmCamera);
+  updatePerfOverlay(frameDt);
 }
 
 addEventListener('resize', () => {
@@ -3925,6 +5697,18 @@ window.__test = () => {
     out.net_mob_spawns = netMobs.has('tst');
     handleRoomMessage({ type: 'mob:dead', id: 'tst', x: 0, y: 8, z: 0, kind: 'Zombie' });
     out.net_mob_removed = !netMobs.has('tst');
+    // ---- arena Magma Colossus boss ----
+    out.has_colossus_kind = !!KIND_BY_NAME['Colossus'] && KIND_BY_NAME['Colossus'].shape === 'colossus';
+    out.colossus_arena_only = !SPAWN_EGGS['egg_colossus'] && !HOSTILE_KINDS.some(k => k.name === 'Colossus');
+    syncNetMobs([{ id: 'col', kind: 'Colossus', x: ARENA.x, y: ARENA.floorY + 1, z: ARENA.z, yaw: 0, hp: 750, max: 750, fuse: 0, st: 'rest' }]);
+    out.colossus_renders = netMobs.has('col') && netMobs.get('col').bossState === 'rest';
+    const tgBefore = bossTelegraphs.length;
+    spawnBossTelegraph({ dur: 1.4, color: 0xff2a1a, spots: [{ x: ARENA.x, z: ARENA.z, r: 7.5 }] });
+    out.boss_telegraph_spawns = bossTelegraphs.length === tgBefore + 1;
+    updateBossTelegraphs(2);   // run past dur → impact + cleanup
+    out.boss_telegraph_clears = bossTelegraphs.length === tgBefore;
+    handleRoomMessage({ type: 'mob:dead', id: 'col', x: ARENA.x, y: ARENA.floorY + 1, z: ARENA.z, kind: 'Colossus' });
+    out.colossus_removed = !netMobs.has('col');
     out.has_chat = typeof openChat === 'function' && typeof addChatLine === 'function';
     out.has_locator = typeof updateLocator === 'function';
   } catch (e) { out.errors.push(String(e)); }

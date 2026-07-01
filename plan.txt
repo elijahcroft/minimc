@@ -1,0 +1,156 @@
+ Optimization Plan
+
+  1. Fix the frame loop first
+      - Split tickFrame() into fixed-step physics
+        and once-per-render visual/UI work.
+
+      - Right now at normal 60 FPS, MAX_SIM_DT =
+        1 / 90 means many expensive updates can run
+        twice per rendered frame: mobs, particles,
+        weather, DOM updates, multiplayer sync,
+        etc.
+
+      - This is likely a major stutter source.
+
+  2. Make chunk work time-budgeted
+      - streamChunks() uses a chunk count budget at
+        index.html:1317, but one genChunk() can
+        rebuild up to 5 chunk meshes at
+        index.html:1297.
+
+      - Change chunk generation/mesh rebuild to a
+        queue with a millisecond budget, e.g. stop
+        after 2-4ms per frame.
+
+      - When a chunk loads, build only that chunk
+        immediately; mark neighbor chunks dirty and
+        let flushDirty() spread them across later
+        frames.
+
+  3. Add real greedy meshing
+      - Current mesh code does face culling at
+        index.html:803, but it still emits every
+        visible block face.
+
+      - Merge adjacent same-material faces into
+        larger quads per direction/type.
+
+      - This should cut vertices, triangles, draw
+        work, and shadow work substantially.
+
+  4. Reduce chunk radius or make it adaptive
+      - CHUNK_RADIUS = 7 at index.html:893 means a
+        15x15 active target area, and unload keeps
+        up to 19x19 while moving.
+
+      - Start with radius 5 or 6, then adapt upward
+        if FPS is stable.
+
+      - Optionally keep a smaller render radius and
+        a separate low-priority background
+        generation radius.
+
+  5. Improve world culling
+      - Keep nearby chunks always visible, but hide
+        far chunks outside fog/camera-relevant
+        distance.
+
+      - Prioritize chunks in front of the camera
+        before chunks behind the player.
+
+      - For shadow rendering, only allow nearby
+        terrain chunks to cast shadows.
+
+  6. Lower shadow cost
+      - Shadows are globally enabled at
+        index.html:194, with a 2048 shadow map at
+        index.html:205.
+
+      - Good first pass: 1024 shadow map, terrain
+        receives shadows but does not cast beyond a
+        small radius, mobs/players cast shadows.
+
+      - Add a quality toggle: low disables terrain
+        shadows entirely.
+
+  7. Reduce startup render pressure
+      - Start pixel ratio at min(devicePixelRatio,
+        1.25 or 1.5) instead of up to 2 at
+        index.html:190.
+
+      - The adaptive scaler already exists, but it
+        reacts after stutter happens.
+
+  8. Cache mob geometries/materials
+      - box() creates a new BoxGeometry and
+        MeshLambertMaterial for every mob body part
+        at index.html:1981.
+
+      - Cache geometries by dimensions and
+        materials by color.
+
+      - This reduces memory, shader/material churn,
+        and GC pressure.
+
+  9. Pool particles and projectiles
+      - Particles create/remove individual meshes
+        at index.html:1456.
+
+      - Use a small mesh pool or InstancedMesh.
+      - Same idea for drops, arrows, bullets, and
+        fireballs.
+
+  10. Cut per-frame allocations
+
+  - tickFrame() creates several THREE.Vector3
+    objects each update slice around
+    index.html:4328.
+
+  - Reuse scratch vectors for movement, camera
+    direction, projectile math, shooting stars, and
+    mob targeting.
+
+  - This targets GC stutter rather than raw FPS.
+
+  11. Optimize block lookup keys
+
+  - The world is a Map keyed by strings like
+    "x,y,z" at index.html:733.
+
+  - Mesh builds parse every key with
+    split(',').map(Number) at index.html:823.
+
+  - Use chunk-local numeric coordinates or store
+    {x,y,z,type} records so rebuilds avoid string
+    parsing.
+
+  12. Throttle expensive UI/save work
+
+  - saveGame() serializes all edits every 10
+    seconds at index.html:3566.
+
+  - For large worlds, move save serialization to
+    idle time or only save when dirty.
+
+  - Also update crack texture only when the crack
+    stage changes, not every mining tick.
+
+  13. Add perf instrumentation before/while
+     changing
+
+  - Add a small ?perf=1 overlay showing FPS, frame
+    p95, loaded chunks, dirty queue length, draw
+    calls, triangles, geometries, textures, mobs,
+    particles.
+
+  - Use renderer.info and performance.now() around
+    chunk generation/mesh building.
+
+  - This will tell us which changes actually remove
+    the stutter.
+
+  Recommended implementation order: frame-loop
+  split, chunk queue/budgeting, shadow/radius
+  tuning, geometry/material caching, then greedy
+  meshing. That order gives the fastest stutter
+  reduction before the bigger mesh rewrite.
