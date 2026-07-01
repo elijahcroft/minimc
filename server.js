@@ -1,11 +1,11 @@
-import http from 'http';
-import fs from 'fs';
-import path from 'path';
-import os from 'os';
+import http from 'node:http';
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
 import { fileURLToPath } from 'url';
 import { WebSocket, WebSocketServer } from 'ws';
 import { SEA, heightAt, surfaceY, ARENA } from './shared/worldgen.js';
-import { sanitizeName, safeNumber, clamp, normalizeTransform, normalizeBlock } from './shared/protocol.js';
+import { sanitizeName, safeNumber, clamp, normalizeTransform, normalizeBlock, normalizeAppearance, normalizeItemId } from './shared/protocol.js';
 
 // ============================================================ config
 const CONFIG = {
@@ -25,9 +25,202 @@ const CONFIG = {
 };
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
+const WORLD_PATH = path.join(ROOT, 'world.json');
+const WORLD_TMP_PATH = `${WORLD_PATH}.tmp`;
+const WORLD_SAVE_DEBOUNCE_MS = 3000;
+const PLAYERS_PATH = path.join(ROOT, 'players.json');
+const PLAYERS_TMP_PATH = `${PLAYERS_PATH}.tmp`;
+const PLAYERS_SAVE_DEBOUNCE_MS = 3000;
+const HOTBAR_SLOTS = 9;
+const STORE_SLOTS = 27;
+const MAX_ITEM_COUNT = 999;
 const players = new Map();
+const savedInventory = new Map();
 const blockEdits = new Map();
 let nextId = 1;
+let worldSaveTimer = null;
+let worldDirty = false;
+let playersSaveTimer = null;
+let playersDirty = false;
+let shuttingDown = false;
+let timerEndsAt = null;
+
+/*
+world.json format:
+{
+  "version": 1,
+  "edits": [{ "key": "x,y,z", "type": "block_id_or_null" }]
+}
+Each entry mirrors one block override in `blockEdits`.
+*/
+function worldSnapshot() {
+  return {
+    version: 1,
+    edits: [...blockEdits.entries()].map(([key, type]) => ({ key, type })),
+  };
+}
+
+function loadWorldFromDisk() {
+  try {
+    const raw = fs.readFileSync(WORLD_PATH, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.edits)) return;
+    blockEdits.clear();
+    for (const entry of parsed.edits) {
+      if (!entry || typeof entry.key !== 'string') continue;
+      blockEdits.set(entry.key, entry.type ?? null);
+    }
+  } catch (error) {
+    if (error && error.code !== 'ENOENT') {
+      console.warn('Starting with an empty world; failed to load world.json:', error);
+    }
+  }
+}
+
+function flushWorldToDiskSync() {
+  if (!worldDirty) return;
+  const payload = `${JSON.stringify(worldSnapshot(), null, 2)}\n`;
+  fs.writeFileSync(WORLD_TMP_PATH, payload, 'utf8');
+  fs.renameSync(WORLD_TMP_PATH, WORLD_PATH);
+  worldDirty = false;
+}
+
+function scheduleWorldSave() {
+  worldDirty = true;
+  if (shuttingDown || worldSaveTimer) return;
+  worldSaveTimer = setTimeout(() => {
+    worldSaveTimer = null;
+    try {
+      flushWorldToDiskSync();
+    } catch (error) {
+      console.error('Failed to persist world.json:', error);
+    }
+  }, WORLD_SAVE_DEBOUNCE_MS);
+}
+
+function playersSnapshot() {
+  return {
+    version: 1,
+    inventories: Object.fromEntries(savedInventory),
+  };
+}
+
+function loadPlayersFromDisk() {
+  try {
+    const raw = fs.readFileSync(PLAYERS_PATH, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed.inventories !== 'object' || !parsed.inventories) return;
+    savedInventory.clear();
+    for (const [name, inventory] of Object.entries(parsed.inventories)) {
+      if (typeof name !== 'string') continue;
+      const normalized = normalizeSavedInventory(inventory);
+      if (normalized) savedInventory.set(sanitizeName(name), normalized);
+    }
+  } catch (error) {
+    if (error && error.code !== 'ENOENT') {
+      console.warn('Starting with empty player inventory state; failed to load players.json:', error);
+    }
+  }
+}
+
+function flushPlayersToDiskSync() {
+  if (!playersDirty) return;
+  const payload = `${JSON.stringify(playersSnapshot(), null, 2)}\n`;
+  fs.writeFileSync(PLAYERS_TMP_PATH, payload, 'utf8');
+  fs.renameSync(PLAYERS_TMP_PATH, PLAYERS_PATH);
+  playersDirty = false;
+}
+
+function schedulePlayersSave() {
+  playersDirty = true;
+  if (shuttingDown || playersSaveTimer) return;
+  playersSaveTimer = setTimeout(() => {
+    playersSaveTimer = null;
+    try {
+      flushPlayersToDiskSync();
+    } catch (error) {
+      console.error('Failed to persist players.json:', error);
+    }
+  }, PLAYERS_SAVE_DEBOUNCE_MS);
+}
+
+function normalizeInventoryItems(value, size) {
+  if (!Array.isArray(value) || value.length > size) return null;
+  const out = new Array(size).fill(null);
+  for (let i = 0; i < value.length; i++) out[i] = normalizeItemId(value[i]);
+  return out;
+}
+
+function normalizeInventoryCounts(value, size, allowNull = false) {
+  if (!Array.isArray(value) || value.length > size) return null;
+  const out = new Array(size).fill(0);
+  for (let i = 0; i < value.length; i++) {
+    if (allowNull && value[i] == null) {
+      out[i] = null;
+      continue;
+    }
+    const n = Math.trunc(Number(value[i]));
+    if (!Number.isFinite(n)) return null;
+    out[i] = clamp(n, 0, MAX_ITEM_COUNT);
+  }
+  return out;
+}
+
+function normalizeSavedInventory(value) {
+  const source = value && typeof value === 'object' ? value : null;
+  if (!source) return null;
+  const hotbar = normalizeInventoryItems(source.hotbar, HOTBAR_SLOTS);
+  const counts = normalizeInventoryCounts(source.counts, HOTBAR_SLOTS, true);
+  const store = normalizeInventoryItems(source.store, STORE_SLOTS);
+  const storeCounts = normalizeInventoryCounts(source.storeCounts, STORE_SLOTS, false);
+  if (!hotbar || !counts || !store || !storeCounts) return null;
+
+  for (let i = 0; i < HOTBAR_SLOTS; i++) {
+    if (!hotbar[i]) counts[i] = 0;
+    else if (counts[i] === 0) counts[i] = 1;
+  }
+  for (let i = 0; i < STORE_SLOTS; i++) {
+    if (!store[i]) storeCounts[i] = 0;
+    else if (storeCounts[i] === 0) storeCounts[i] = 1;
+  }
+
+  return {
+    hotbar,
+    counts,
+    store,
+    storeCounts,
+    currentSlot: clamp(Math.trunc(Number(source.currentSlot) || 0), 0, HOTBAR_SLOTS - 1),
+  };
+}
+
+function shutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  if (worldSaveTimer) {
+    clearTimeout(worldSaveTimer);
+    worldSaveTimer = null;
+  }
+  if (playersSaveTimer) {
+    clearTimeout(playersSaveTimer);
+    playersSaveTimer = null;
+  }
+  try {
+    flushWorldToDiskSync();
+  } catch (error) {
+    console.error(`Failed to persist world.json during ${signal}:`, error);
+  }
+  try {
+    flushPlayersToDiskSync();
+  } catch (error) {
+    console.error(`Failed to persist players.json during ${signal}:`, error);
+  }
+  server.close(() => process.exit(0));
+  wss.close();
+  setTimeout(() => process.exit(0), 1000).unref();
+}
+
+loadWorldFromDisk();
+loadPlayersFromDisk();
 
 // ============================================================ class quest
 let quest = { active: false, type: '', label: '', target: 0, progress: 0 };
@@ -42,6 +235,20 @@ function advanceQuest(n = 1) {
     quest.active = false;
     broadcast({ type: 'quest:done', label: quest.label });
   }
+}
+
+function timerSnapshot(now = Date.now()) {
+  if (!Number.isFinite(timerEndsAt)) return null;
+  const seconds = Math.max(0, Math.ceil((timerEndsAt - now) / 1000));
+  if (seconds <= 0) {
+    timerEndsAt = null;
+    return null;
+  }
+  return { endAt: timerEndsAt, seconds };
+}
+
+function broadcastTimer() {
+  broadcast({ type: 'timer:set', timer: timerSnapshot() });
 }
 
 const contentTypes = new Map([
@@ -80,7 +287,7 @@ const PASSIVE = [
   { name: 'Chicken', hp: 6, speed: 2.4 },
 ];
 const HOSTILE = [
-  { name: 'Zombie', hp: 16, speed: 2.4, dmg: 3, detect: 18 },
+  { name: 'Zombie', hp: 16, speed: 2.4, dmg: 3, detect: 18, burnsInSun: true },
   { name: 'Spider', hp: 12, speed: 3.4, dmg: 2, detect: 15 },
   { name: 'Creeper', hp: 14, speed: 2.6, dmg: 0, detect: 16, explode: true },
 ];
@@ -90,11 +297,23 @@ const MOB_LOOT = {
   Creeper: [['coal', 0, 1]],
 };
 const TAU = Math.PI * 2;
+const DAY_NIGHT_RATE = 0.025;
 const mobs = new Map();
 let nextMobId = 1;
 const TICK = CONFIG.tick;
 const SYNC_EVERY = CONFIG.syncEvery;
 let tickCount = 0;
+let worldTime = 0;
+const MOB_TEMPLATES = new Map([...PASSIVE, ...HOSTILE].map(kind => [kind.name, kind]));
+
+function mobTemplate(kind) {
+  return MOB_TEMPLATES.get(kind) || null;
+}
+function serverDaylight() {
+  const dayAngle = worldTime * DAY_NIGHT_RATE + Math.PI / 2;
+  const sunLift = Math.sin(dayAngle);
+  return Math.max(0.08, Math.min(1, (sunLift + 0.25) / 1.25));
+}
 
 function survivalPlayers() {
   return [...players.values()].filter(p => !p.teacher && p.alive !== false);
@@ -126,7 +345,7 @@ function spawnMob(hostile) {
   mobs.set(id, {
     id, kind: kind.name, hostile, x, y: surfaceY(x, z), z, yaw: Math.random() * TAU,
     hp: kind.hp, maxhp: kind.hp, speed: kind.speed, dmg: kind.dmg || 0,
-    detect: kind.detect || 0, explode: !!kind.explode,
+    detect: kind.detect || 0, explode: !!kind.explode, burnsInSun: !!kind.burnsInSun,
     heading: Math.random() * TAU, wander: 1 + Math.random() * 3, moving: true,
     attackCD: 0, fuse: 0, home: { x, z }, leash: 26,
   });
@@ -183,6 +402,7 @@ function tickArenaBoss(m, near) {
           id: sid, kind: 'Zombie', hostile: true, summonedBy: m.id,
           x: sx, y: surfaceY(Math.round(sx), Math.round(sz)), z: sz, yaw: 0,
           hp: 16, maxhp: 16, speed: 2.6, dmg: 3, detect: 18, explode: false,
+          burnsInSun: true,
           heading: 0, wander: 2, moving: true, attackCD: 0, fuse: 0,
           home: { x: sx, z: sz }, leash: ARENA.radius + 4,
         });
@@ -283,6 +503,7 @@ function tickColossus(m, near) {
 }
 function tickMobs() {
   const alive = survivalPlayers();
+  const daylight = serverDaylight();
   // spawn toward a target population scaled by player count
   if (alive.length) {
     const mc = CONFIG.mob;
@@ -293,12 +514,24 @@ function tickMobs() {
       spawnMob(wantHostile && Math.random() < mc.hostileBias);
     }
   }
-  for (const m of mobs.values()) {
+  for (const m of [...mobs.values()]) {
     // despawn if far from every player — but never despawn a summoned boss
     if (!nearestPlayerTo(m.x, m.z, CONFIG.mob.despawnDist)) {
       if (!m.colossus && !m.arenaBoss && Math.random() < 0.02) mobs.delete(m.id);
       continue;
     }
+    if (m.burnsInSun && daylight > 0.5) {
+      m.burnT = (m.burnT || 0) - TICK;
+      if (m.burnT <= 0) {
+        m.burnT = 1.0;
+        m.hp -= 1;
+        if (m.hp <= 0) {
+          killMob(m.id, null);
+          continue;
+        }
+        broadcast({ type: 'mob:hurt', id: m.id, hp: m.hp });
+      }
+    } else m.burnT = 1.0;
 
     let chasing = false;
     if (m.hostile && m.detect) {
@@ -372,9 +605,10 @@ function mobSnapshot() {
 
 setInterval(() => {
   tickCount++;
+  worldTime += TICK;
   if (players.size === 0) { if (mobs.size) mobs.clear(); return; }
   tickMobs();
-  if (tickCount % SYNC_EVERY === 0) broadcast({ type: 'mob:sync', mobs: mobSnapshot() });
+  if (tickCount % SYNC_EVERY === 0) broadcast({ type: 'mob:sync', mobs: mobSnapshot(), worldTime });
   if (tickCount % 20 === 0) broadcast({ type: 'leaderboard:update', players: leaderboardSnapshot() });
 }, TICK * 1000);
 
@@ -387,11 +621,14 @@ const messageHandlers = {
     // only one teacher (admin) allowed: a second ?teacher join joins as a student
     const teacherTaken = [...players.values()].some(p => p.teacher);
     ws.isTeacher = !!message.teacher && !teacherTaken;
+    const playerName = ws.isTeacher ? 'Teacher' : sanitizeName(message.name);
     const player = {
       id: ws.playerId,
-      name: ws.isTeacher ? 'Teacher' : sanitizeName(message.name),
+      name: playerName,
       teacher: ws.isTeacher,
       color: String(message.color || '#66d9ef').slice(0, 16),
+      appearance: normalizeAppearance(message.appearance),
+      held: normalizeItemId(message.held),
       transform: normalizeTransform(message.transform),
       alive: true,
       kills: 0, blocksPlaced: 0, questContrib: 0,
@@ -405,7 +642,10 @@ const messageHandlers = {
       edits: [...blockEdits.entries()].map(([k, type]) => ({ key: k, type })),
       mobs: mobSnapshot(),
       quest: questSnapshot(),
+      timer: timerSnapshot(),
       leaderboard: leaderboardSnapshot(),
+      worldTime,
+      savedInventory: ws.isTeacher ? null : (savedInventory.get(playerName) || null),
     });
     broadcast({ type: 'player:joined', player }, ws);
     broadcast({ type: 'system', text: `${player.name} joined` }, ws);
@@ -413,7 +653,8 @@ const messageHandlers = {
 
   'player:update'(ws, message, player) {
     player.transform = normalizeTransform(message.transform);
-    broadcast({ type: 'player:update', id: ws.playerId, transform: player.transform }, ws);
+    if ('held' in message) player.held = normalizeItemId(message.held);
+    broadcast({ type: 'player:update', id: ws.playerId, transform: player.transform, held: player.held }, ws);
   },
 
   'block:set'(ws, message, player) {
@@ -421,6 +662,7 @@ const messageHandlers = {
     if (!block) return;
     const k = `${block.x},${block.y},${block.z}`;
     blockEdits.set(k, block.type);
+    scheduleWorldSave();
     if (block.type) player.blocksPlaced++;
     broadcast({ type: 'block:set', ...block }, ws);
   },
@@ -453,6 +695,7 @@ const messageHandlers = {
     const x = safeNumber(message.x), z = safeNumber(message.z);
     if (!Number.isFinite(x) || !Number.isFinite(z)) return;
     const hp = clamp(Number(message.hp) || 10, 1, 200);
+    const template = mobTemplate(kind);
     const id = String(nextMobId++);
     mobs.set(id, {
       id, kind, hostile: !!message.hostile,
@@ -461,11 +704,11 @@ const messageHandlers = {
       speed: clamp(Number(message.speed) || 2, 0, 8),
       dmg: clamp(Number(message.dmg) || 0, 0, 10),
       detect: clamp(Number(message.detect) || 0, 0, 48),
-      explode: !!message.explode,
+      explode: !!message.explode, burnsInSun: !!(template && template.burnsInSun),
       heading: Math.random() * TAU, wander: 1 + Math.random() * 3, moving: true,
       attackCD: 0, fuse: 0, home: { x, z }, leash: 26,
     });
-    broadcast({ type: 'mob:sync', mobs: mobSnapshot() });
+    broadcast({ type: 'mob:sync', mobs: mobSnapshot(), worldTime });
   },
 
   'pvp:attack'(ws, message, player) {
@@ -492,6 +735,7 @@ const messageHandlers = {
   'teacher:reset'(ws) {
     if (!ws.isTeacher) return;
     blockEdits.clear();
+    scheduleWorldSave();
     broadcast({ type: 'world:reset' });
     sendJson(ws, { type: 'world:reset' });
   },
@@ -522,43 +766,43 @@ const messageHandlers = {
       id, kind: 'Dragon', hostile: true,
       x: bx, y: surfaceY(Math.round(bx), Math.round(bz)), z: bz, yaw: 0,
       hp: 400, maxhp: 400, speed: 4.5, dmg: 8, detect: 44,
-      explode: false, heading: 0, wander: 2, moving: true,
+      explode: false, burnsInSun: false, heading: 0, wander: 2, moving: true,
       attackCD: 0, fuse: 0, home: { x: bx, z: bz }, leash: 80,
     });
-    broadcast({ type: 'mob:sync', mobs: mobSnapshot() });
+    broadcast({ type: 'mob:sync', mobs: mobSnapshot(), worldTime });
     broadcast({ type: 'system', text: '⚠ A BOSS has appeared! Defeat it together!' });
   },
 
   'teacher:spawnArenaBoss'(ws) {
     if (!ws.isTeacher) return;
-    for (const [id, m] of mobs) if (m.arenaBoss) mobs.delete(id);   // only one at a time
+    for (const [id, m] of [...mobs]) if (m.arenaBoss) mobs.delete(id);   // only one at a time
     const id = String(nextMobId++);
     mobs.set(id, {
       id, kind: 'Dragon', hostile: true, arenaBoss: true,
       x: ARENA.x, y: ARENA.floorY + 1, z: ARENA.z, yaw: 0,
       hp: 600, maxhp: 600, speed: 4.0, dmg: 9, detect: ARENA.radius + 6,
-      explode: false, heading: 0, wander: 2, moving: true,
+      explode: false, burnsInSun: false, heading: 0, wander: 2, moving: true,
       attackCD: 0, fuse: 0, home: { x: ARENA.x, z: ARENA.z }, leash: ARENA.radius + 2,
       fireCD: 3, summonCD: 12,
     });
-    broadcast({ type: 'mob:sync', mobs: mobSnapshot() });
+    broadcast({ type: 'mob:sync', mobs: mobSnapshot(), worldTime });
     broadcast({ type: 'system', text: '⚔ The Arena Dragon awakens!' });
   },
 
   'teacher:spawnArenaColossus'(ws) {
     if (!ws.isTeacher) return;
-    for (const [id, m] of mobs) if (m.colossus) mobs.delete(id);   // only one at a time
+    for (const [id, m] of [...mobs]) if (m.colossus) mobs.delete(id);   // only one at a time
     const id = String(nextMobId++);
     mobs.set(id, {
       id, kind: 'Colossus', hostile: true, colossus: true,
       x: ARENA.x, y: ARENA.floorY + 1, z: ARENA.z, yaw: 0,
       hp: COLOSSUS.hp, maxhp: COLOSSUS.hp, speed: COLOSSUS.speed, dmg: COLOSSUS.dmg,
-      detect: ARENA.radius + 10, explode: false,
+      detect: ARENA.radius + 10, explode: false, burnsInSun: false,
       heading: 0, wander: 2, moving: true, attackCD: 0, fuse: 0,
       home: { x: ARENA.x, z: ARENA.z }, leash: ARENA.radius - 1,
       phase: 'pursue', phaseT: COLOSSUS.pursueMin, bossState: 'pursue', vulnerable: false, meteorSpots: [],
     });
-    broadcast({ type: 'mob:sync', mobs: mobSnapshot() });
+    broadcast({ type: 'mob:sync', mobs: mobSnapshot(), worldTime });
     broadcast({ type: 'system', text: '🌋 The MAGMA COLOSSUS rises! Strike it only when it rests!' });
   },
 
@@ -582,9 +826,37 @@ const messageHandlers = {
     broadcast({ type: 'system', text: `${player.name} gave ${count}x ${item} to ${target.name}` });
   },
 
+  'inv:save'(ws, message, player) {
+    if (player.teacher) return;
+    const inventory = normalizeSavedInventory(message);
+    if (!inventory) return;
+    savedInventory.set(player.name, inventory);
+    schedulePlayersSave();
+  },
+
   'teacher:teleportAll'(ws, message) {
     if (!ws.isTeacher) return;
     broadcast({ type: 'teacher:teleport', transform: normalizeTransform(message.transform) }, ws);
+  },
+
+  'teacher:gotoPlayer'(ws, message) {
+    if (!ws.isTeacher) return;
+    const target = players.get(String(message.target || ''));
+    if (!target || target.teacher) return;
+    sendToId(ws.playerId, { type: 'teacher:teleport', transform: target.transform });
+  },
+
+  'teacher:startTimer'(ws, message) {
+    if (!ws.isTeacher) return;
+    const seconds = clamp(Math.ceil(Number(message.seconds) || 0), 1, 24 * 60 * 60);
+    timerEndsAt = Date.now() + seconds * 1000;
+    broadcastTimer();
+  },
+
+  'teacher:clearTimer'(ws) {
+    if (!ws.isTeacher) return;
+    timerEndsAt = null;
+    broadcastTimer();
   },
 
   'teacher:setMode'(ws, message) {
@@ -619,7 +891,10 @@ const server = http.createServer((req, res) => {
   });
 });
 
-const wss = new WebSocketServer({ server, path: '/room' });
+const wss = new WebSocketServer({ server, path: '/room', maxPayload: 1024 * 64 });
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
 
 wss.on('connection', (ws) => {
   const id = String(nextId++);
@@ -638,6 +913,10 @@ wss.on('connection', (ws) => {
     const player = players.get(id);
     if (!player) return;
     handler(ws, message, player);
+  });
+
+  ws.on('error', (err) => {
+    console.error(`WebSocket error (player ${id}):`, err.message);
   });
 
   ws.on('close', () => {

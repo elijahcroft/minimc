@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { sanitizeName, safeNumber, clamp, normalizeTransform, normalizeBlock, WORLD } from '../shared/protocol.js';
+import { sanitizeName, safeNumber, clamp, normalizeTransform, normalizeBlock, normalizeColor, normalizeAppearance, normalizeItemId, WORLD } from '../shared/protocol.js';
 
 // Validation guards the websocket boundary so a malformed or out-of-range
 // payload can't silently corrupt server state.
@@ -45,4 +45,28 @@ test('normalizeBlock rejects non-finite and out-of-range coordinates', () => {
   assert.equal(normalizeBlock({ x: WORLD.maxXZ + 1, y: 0, z: 0 }), null);
   assert.equal(normalizeBlock({ x: 0, y: WORLD.maxY + 1, z: 0 }), null);
   assert.equal(normalizeBlock({ x: 0, y: WORLD.minY - 1, z: 0 }), null);
+});
+
+test('normalizeColor accepts 6-digit hex and falls back otherwise', () => {
+  assert.equal(normalizeColor('#A1B2C3', '#000000'), '#a1b2c3');
+  assert.equal(normalizeColor('red', '#000000'), '#000000');
+  assert.equal(normalizeColor('#fff', '#000000'), '#000000');
+  assert.equal(normalizeColor(null, '#123456'), '#123456');
+});
+
+test('normalizeAppearance always returns four valid hex colors', () => {
+  const a = normalizeAppearance({ skin: '#ffffff', shirt: 'bad' });
+  assert.equal(a.skin, '#ffffff');
+  assert.equal(a.shirt, '#66d9ef');   // fallback
+  assert.equal(a.pants, '#283342');
+  assert.equal(a.hair, '#4a3320');
+  assert.deepEqual(Object.keys(normalizeAppearance(null)).sort(), ['hair', 'pants', 'shirt', 'skin']);
+});
+
+test('normalizeItemId returns a capped string or null for empty', () => {
+  assert.equal(normalizeItemId('sword'), 'sword');
+  assert.equal(normalizeItemId(''), null);
+  assert.equal(normalizeItemId(null), null);
+  assert.equal(normalizeItemId(42), null);
+  assert.equal(normalizeItemId('a'.repeat(80)).length, 40);
 });

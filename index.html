@@ -13,6 +13,7 @@
 <div id="crosshair"></div>
 <div id="mineBar"><i></i></div>
 <div id="hud"></div>
+<div id="hudStats"></div>
 <div id="hearts"></div>
 <div id="hunger"></div>
 <div id="info"></div>
@@ -29,7 +30,7 @@
       <div class="ctrlItem"><kbd>Mouse</kbd> Look</div>
       <div class="ctrlItem"><kbd>&#x2191;&#x2193;&#x2190;&#x2192;</kbd> Look (alt)</div>
       <div class="ctrlItem"><kbd>Space</kbd> Jump</div>
-      <div class="ctrlItem"><kbd>Ctrl</kbd> Sprint</div>
+      <div class="ctrlItem"><kbd>Shift</kbd> Sprint</div>
       <div class="ctrlItem"><kbd>Tab</kbd> Trackpad look / cursor</div>
     </div>
     <div class="ctrlGroup">
@@ -125,12 +126,22 @@
 
 <div id="bossBar" class="hidden"><div id="bossBarName">Boss</div><div id="bossBarOuter"><div id="bossBarFill" style="width:100%"></div></div></div>
 <div id="questBar" class="hidden"><div id="questBarName">Quest</div><div id="questBarText">0 / 0</div><div id="questBarOuter"><div id="questBarFill" style="width:0%"></div></div></div>
+<div id="classTimer" class="hidden">00:00</div>
 <div id="toast"><div class="toast-title" id="toastTitle"></div><div class="toast-sub" id="toastSub"></div></div>
 
 <div id="join" class="hidden">
   <form id="joinBox">
     <h2>JOIN CLASS WORLD</h2>
     <input id="studentName" maxlength="18" autocomplete="name" placeholder="Your name" />
+    <div id="customize">
+      <div class="customTitle">CUSTOMIZE YOUR CHARACTER</div>
+      <div class="customGrid">
+        <label>Skin <input type="color" id="cSkin" /></label>
+        <label>Shirt <input type="color" id="cShirt" /></label>
+        <label>Pants <input type="color" id="cPants" /></label>
+        <label>Hair <input type="color" id="cHair" /></label>
+      </div>
+    </div>
     <button type="submit">Join</button>
     <div id="joinMsg"></div>
   </form>
@@ -142,6 +153,14 @@
   <div class="actions">
     <button id="teleportAll" type="button">Teleport</button>
     <button id="resetWorld" type="button">Reset</button>
+  </div>
+  <div class="timerSection">
+    <div class="questSectionHead">CLASS TIMER</div>
+    <div class="questRow">
+      <input id="timerSeconds" type="number" min="1" max="86400" value="300" />
+      <button id="startTimerBtn" type="button">Start</button>
+    </div>
+    <button id="clearTimerBtn" type="button">Clear Timer</button>
   </div>
   <div class="questSection">
     <div class="questSectionHead">CLASS QUEST</div>
@@ -191,10 +210,30 @@ const urlParams = new URLSearchParams(location.search);
 const MULTIPLAYER = location.protocol.startsWith('http') && !urlParams.has('single') && !location.search.includes('norender');
 let IS_TEACHER = MULTIPLAYER && urlParams.has('teacher');   // server may demote on join if a teacher already exists
 const LOCAL_COLOR = '#' + Math.floor(0x5577aa + Math.random() * 0x777755).toString(16).slice(0, 6).padStart(6, '0');
+// character customization: skin/shirt/pants/hair colors, persisted per-browser.
+// `color` (the name-tag / legacy avatar tint) is derived from the shirt.
+const APPEARANCE_DEFAULTS = { skin: '#f0c7a0', shirt: LOCAL_COLOR, pants: '#283342', hair: '#4a3320' };
+function normalizeAppearance(a, fallbackColor) {
+  const hex = (v, d) => (typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v)) ? v : d;
+  a = a || {};
+  return {
+    skin: hex(a.skin, APPEARANCE_DEFAULTS.skin),
+    shirt: hex(a.shirt, hex(fallbackColor, APPEARANCE_DEFAULTS.shirt)),
+    pants: hex(a.pants, APPEARANCE_DEFAULTS.pants),
+    hair: hex(a.hair, APPEARANCE_DEFAULTS.hair),
+  };
+}
+function loadAppearance() {
+  try { return normalizeAppearance(JSON.parse(localStorage.getItem('mc_appearance_v1'))); }
+  catch { return normalizeAppearance(null); }
+}
+function saveAppearance(a) { localStorage.setItem('mc_appearance_v1', JSON.stringify(a)); }
+let LOCAL_APPEARANCE = loadAppearance();
 const PERF = urlParams.has('perf');
 const SHADOW_QUALITY = urlParams.get('shadows') === 'low' ? 'low' : 'normal';
 let saveDirty = true;
 function markSaveDirty() { saveDirty = true; }
+let milestoneSeen = { firstBlockMined: false, firstToolCrafted: false, firstDiamond: false, firstMobKilled: false, reachedPlanet: false };
 
 // ============================================================ scene
 const scene = new THREE.Scene();
@@ -231,6 +270,23 @@ const SUN_OFFSET = new THREE.Vector3(50, 100, 30);   // sun stays at this offset
 const sunOrbitOffset = new THREE.Vector3().copy(SUN_OFFSET);
 const playerLight = new THREE.PointLight(0xffb45a, 0, 16, 2);
 scene.add(playerLight);
+const TORCH_LIGHT_POOL_SIZE = 12;
+const TORCH_LIGHT_COLOR = 0xff8a1d;
+const TORCH_LIGHT_RANGE = 7;
+const TORCH_LIGHT_INTENSITY = 0.65;
+const TORCH_LIGHT_SEARCH_INTERVAL = 0.25;
+const TORCH_LIGHT_SEARCH_RADIUS = 22;
+const TORCH_LIGHT_SEARCH_RADIUS2 = TORCH_LIGHT_SEARCH_RADIUS * TORCH_LIGHT_SEARCH_RADIUS;
+const torchLightPool = [];
+const _torchLightNearestTorches = new Array(TORCH_LIGHT_POOL_SIZE).fill(null);
+const _torchLightNearestDist2 = new Float32Array(TORCH_LIGHT_POOL_SIZE);
+let torchLightSearchT = 0;
+let torchLightSelectionDirty = true;
+for (let i = 0; i < TORCH_LIGHT_POOL_SIZE; i++) {
+  const light = new THREE.PointLight(TORCH_LIGHT_COLOR, 0, TORCH_LIGHT_RANGE, 2);
+  scene.add(light);
+  torchLightPool.push(light);
+}
 
 // ---- sky, moon, stars (space ambience kicks in as you climb) ----
 const skyDay = new THREE.Color(0x9fd4ff);
@@ -419,6 +475,9 @@ const ITEMS = {
   gold_ingot: { name: 'Gold',      color: 0xf2d24a },
   diamond:    { name: 'Diamond',   color: 0x4fe6e6 },
   string:     { name: 'String',    color: 0xeeeeee },
+  leather:    { name: 'Leather',   color: 0x8b6f47 },
+  feather:    { name: 'Feather',   color: 0xfef8e8 },
+  wool:       { name: 'Wool',      color: 0xf5f5f5 },
 };
 
 const FOODS = {
@@ -745,8 +804,35 @@ function makeMaterial(type) {
 // transparency. Opaque types cast+receive shadows; alpha types (water/glass/leaves) are
 // drawn double-sided and don't cast shadows.
 const world = new Map();
+const torchBlocks = new Map();        // "x,y,z" -> { x, y, z } for loaded torch blocks
 const edits = new Map();
 const key = (x, y, z) => x + ',' + y + ',' + z;
+
+function markTorchLightsDirty() {
+  torchLightSelectionDirty = true;
+  torchLightSearchT = 0;
+}
+function setWorldBlock(k, type, x = null, y = null, z = null) {
+  const prev = world.get(k);
+  world.set(k, type);
+  if (type === 'torch') {
+    if (x == null || y == null || z == null) [x, y, z] = k.split(',').map(Number);
+    const existing = torchBlocks.get(k);
+    if (existing) { existing.x = x; existing.y = y; existing.z = z; }
+    else torchBlocks.set(k, { x, y, z });
+  } else if (prev === 'torch') {
+    torchBlocks.delete(k);
+  }
+  if (prev === 'torch' || type === 'torch') markTorchLightsDirty();
+}
+function deleteWorldBlock(k) {
+  const prev = world.get(k);
+  world.delete(k);
+  if (prev === 'torch') {
+    torchBlocks.delete(k);
+    markTorchLightsDirty();
+  }
+}
 
 const materials = {};
 for (const t of TYPES) materials[t] = makeMaterial(t);
@@ -992,8 +1078,8 @@ const chunkBlocks = new Map();         // "cx,cz" -> Set of world keys placed by
 
 // set a world block AND record it as owned by the chunk currently being generated
 let genCur = null;                     // Set being filled by the in-progress genChunk
-function placeBlock(k, type) { world.set(k, type); if (genCur) genCur.add(k); }
-function carveBlock(k) { world.delete(k); if (genCur) genCur.delete(k); }   // remove a block during gen (e.g. ponds, dungeons)
+function placeBlock(k, type) { setWorldBlock(k, type); if (genCur) genCur.add(k); }
+function carveBlock(k) { deleteWorldBlock(k); if (genCur) genCur.delete(k); }   // remove a block during gen (e.g. ponds, dungeons)
 
 // CHUNK = 16. True when (x,z) sits at least `m` blocks from every edge of its
 // own chunk, so a structure of half-width `m` anchored here fits entirely inside
@@ -1312,18 +1398,18 @@ function polishMoonChunk(pl, x0, z0, owned) {
         for (let j = 0; j < depth; j++) {
           const wy = pl.cy + pl.H - j;
           const k = key(wx, wy, wz);
-          world.delete(k); owned.delete(k);
+          deleteWorldBlock(k); owned.delete(k);
         }
         const floorY = pl.cy + pl.H - depth;
         const floorK = key(wx, floorY, wz);
         const rim = depth >= 4 && rand(wx * 1.7, wz * 2.1) > 0.87;
-        world.set(floorK, rim ? 'cheese' : 'moonrock'); owned.add(floorK);
+        setWorldBlock(floorK, rim ? 'cheese' : 'moonrock'); owned.add(floorK);
       }
 
       for (let ly = -pl.H; ly <= pl.H; ly++) {
         const wy = pl.cy + ly, k = key(wx, wy, wz);
         if (world.get(k) === 'moonrock' && rand3(wx / 3 + 7, wy / 4 + 11, wz / 3 - 2) > 0.985) {
-          world.set(k, 'cheese');
+          setWorldBlock(k, 'cheese');
         }
       }
     }
@@ -1393,7 +1479,7 @@ function genChunk(cx, cz) {
   for (const [k, v] of edits) {
     const [ex, , ez] = k.split(',').map(Number);
     if (Math.floor(ex / CHUNK) !== cx || Math.floor(ez / CHUNK) !== cz) continue;
-    if (v === null) { world.delete(k); owned.delete(k); } else { world.set(k, v); owned.add(k); }
+    if (v === null) { deleteWorldBlock(k); owned.delete(k); } else { setWorldBlock(k, v); owned.add(k); }
   }
   genCur = null;
   chunkBlocks.set(ck, owned);
@@ -1413,7 +1499,7 @@ function unloadChunk(cx, cz) {
   if (grp) { scene.remove(grp); for (const m of grp.children) m.geometry.dispose(); chunkMeshes.delete(ck); }
   const owned = chunkBlocks.get(ck);
   if (owned) for (const k of owned) {
-    world.delete(k);   // edits map untouched → regen restores player changes
+    deleteWorldBlock(k);   // edits map untouched → regen restores player changes
   }
   chunkBlocks.delete(ck);
   loaded.delete(ck);
@@ -1594,21 +1680,47 @@ function placeTargets(count = 1) {
 // ============================================================ particles
 const pGeo = new THREE.BoxGeometry(0.14, 0.14, 0.14);
 const pMatCache = new Map();
+const PARTICLE_CAP = 220;
 const particles = [];
-const particlePool = [];
+const particlePool = Array.from({ length: PARTICLE_CAP }, (_, i) => PARTICLE_CAP - 1 - i);
+const pDummy = new THREE.Object3D();
+const pColor = new THREE.Color();
 function colorMat(hex) {
   if (!pMatCache.has(hex)) pMatCache.set(hex, new THREE.MeshLambertMaterial({ color: hex }));
   return pMatCache.get(hex);
 }
+const particleMesh = new THREE.InstancedMesh(
+  pGeo,
+  new THREE.MeshLambertMaterial({ vertexColors: true }),
+  PARTICLE_CAP
+);
+particleMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+for (let i = 0; i < PARTICLE_CAP; i++) {
+  pDummy.position.set(0, 0, 0);
+  pDummy.scale.set(0, 0, 0);
+  pDummy.updateMatrix();
+  particleMesh.setMatrixAt(i, pDummy.matrix);
+  particleMesh.setColorAt(i, pColor.setHex(0x000000));
+}
+particleMesh.instanceMatrix.needsUpdate = true;
+if (particleMesh.instanceColor) particleMesh.instanceColor.needsUpdate = true;
+scene.add(particleMesh);
 function spawnParticles(cx, cy, cz, hex, n) {
-  if (particles.length > 220) return;
+  if (particles.length >= PARTICLE_CAP) return;
   for (let i = 0; i < n; i++) {
-    const m = particlePool.pop() || new THREE.Mesh(pGeo, colorMat(hex));
-    m.material = colorMat(hex);
-    m.position.set(cx + Math.random(), cy + Math.random(), cz + Math.random());
-    m.scale.set(1, 1, 1);
-    scene.add(m);
-    particles.push({ m, vx: (Math.random() - 0.5) * 4, vy: 3 + Math.random() * 3, vz: (Math.random() - 0.5) * 4, life: 0.6 + Math.random() * 0.3 });
+    const slot = particlePool.pop();
+    if (slot == null) return;
+    particles.push({
+      slot,
+      x: cx + Math.random(),
+      y: cy + Math.random(),
+      z: cz + Math.random(),
+      vx: (Math.random() - 0.5) * 4,
+      vy: 3 + Math.random() * 3,
+      vz: (Math.random() - 0.5) * 4,
+      life: 0.6 + Math.random() * 0.3,
+      color: hex,
+    });
   }
 }
 function spawnConfettiBurst(cx, cy, cz, n = 26) {
@@ -1616,15 +1728,33 @@ function spawnConfettiBurst(cx, cy, cz, n = 26) {
   for (let i = 0; i < n; i++) spawnParticles(cx, cy, cz, palette[i % palette.length], 1);
 }
 function updateParticles(dt) {
+  let matrixDirty = false;
+  let colorDirty = false;
   for (let i = particles.length - 1; i >= 0; i--) {
     const p = particles[i];
     p.vy -= 18 * dt;
-    p.m.position.x += p.vx * dt; p.m.position.y += p.vy * dt; p.m.position.z += p.vz * dt;
+    p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
     p.life -= dt;
     const s = Math.max(0.01, p.life * 1.6);
-    p.m.scale.set(s, s, s);
-    if (p.life <= 0) { scene.remove(p.m); particlePool.push(p.m); particles.splice(i, 1); }
+    pDummy.position.set(p.x, p.y, p.z);
+    pDummy.scale.set(s, s, s);
+    pDummy.updateMatrix();
+    particleMesh.setMatrixAt(p.slot, pDummy.matrix);
+    particleMesh.setColorAt(p.slot, pColor.setHex(p.color));
+    matrixDirty = true;
+    colorDirty = true;
+    if (p.life <= 0) {
+      pDummy.position.set(0, 0, 0);
+      pDummy.scale.set(0, 0, 0);
+      pDummy.updateMatrix();
+      particleMesh.setMatrixAt(p.slot, pDummy.matrix);
+      matrixDirty = true;
+      particlePool.push(p.slot);
+      particles.splice(i, 1);
+    }
   }
+  if (matrixDirty) particleMesh.instanceMatrix.needsUpdate = true;
+  if (colorDirty && particleMesh.instanceColor) particleMesh.instanceColor.needsUpdate = true;
 }
 
 // ============================================================ dropped items
@@ -1632,11 +1762,47 @@ function updateParticles(dt) {
 // vacuumed into the inventory when the player walks near them (like normal MC).
 const drops = [];
 const dropGeo = new THREE.BoxGeometry(0.3, 0.3, 0.3);
+const DROP_INSTANCE_MIN_CAP = 128;
+const dropDummy = new THREE.Object3D();
+const dropTint = new THREE.Color();
+let dropMeshCap = 0;
+let dropMesh = null;
+function createDropMesh(cap) {
+  const mesh = new THREE.InstancedMesh(
+    dropGeo,
+    // Item UI/world visuals can diverge by block/item type, so drops fall back
+    // to shared box instances tinted per item color instead of per-item textures.
+    new THREE.MeshLambertMaterial({ vertexColors: true }),
+    cap
+  );
+  mesh.frustumCulled = false;
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  for (let i = 0; i < cap; i++) {
+    dropDummy.position.set(0, 0, 0);
+    dropDummy.scale.set(0, 0, 0);
+    dropDummy.updateMatrix();
+    mesh.setMatrixAt(i, dropDummy.matrix);
+    mesh.setColorAt(i, dropTint.setHex(0x000000));
+  }
+  mesh.instanceMatrix.needsUpdate = true;
+  if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+  return mesh;
+}
+function ensureDropMeshCapacity(count) {
+  if (count <= dropMeshCap && dropMesh) return;
+  let nextCap = Math.max(DROP_INSTANCE_MIN_CAP, dropMeshCap || DROP_INSTANCE_MIN_CAP);
+  while (nextCap < count) nextCap *= 2;
+  const nextMesh = createDropMesh(nextCap);
+  if (dropMesh) scene.remove(dropMesh);
+  dropMesh = nextMesh;
+  dropMeshCap = nextCap;
+  scene.add(dropMesh);
+}
+ensureDropMeshCapacity(0);
 function spawnDrop(id, x, y, z, n = 1) {
   if (!id) return;
-  const m = new THREE.Mesh(dropGeo, colorMat(itemDef(id).color));
+  const m = new THREE.Object3D();
   m.position.set(x + 0.5, y + 0.45, z + 0.5);
-  scene.add(m);
   drops.push({ id, n, m, vy: 2, age: 0 });
 }
 function blockBelowPlayer(pos) {
@@ -1676,11 +1842,36 @@ function updateDrops(dt) {
     const dx = pp.x - p.x, dy = (pp.y - PLAYER_H * 0.5) - p.y, dz = pp.z - p.z;
     const dist = Math.hypot(dx, dy, dz);
     if (d.age > 0.4 && dist < 1.4) {
-      if (dist < 0.6) { addToInventory(d.id, d.n || 1); scene.remove(d.m); drops.splice(i, 1); continue; }
+      if (dist < 0.6) { addToInventory(d.id, d.n || 1); playSfx('itemPickup'); drops.splice(i, 1); continue; }
       const pull = Math.min(1, 6 * dt / Math.max(dist, 0.2));
       p.x += dx * pull; p.y += dy * pull; p.z += dz * pull;
     }
   }
+  ensureDropMeshCapacity(drops.length);
+  let matrixDirty = false;
+  let colorDirty = false;
+  for (let i = 0; i < drops.length; i++) {
+    const d = drops[i];
+    const p = d.m.position;
+    const spin = d.m.rotation.y;
+    dropDummy.position.copy(p);
+    dropDummy.rotation.set(0, spin, 0);
+    dropDummy.scale.set(1, 1, 1);
+    dropDummy.updateMatrix();
+    dropMesh.setMatrixAt(i, dropDummy.matrix);
+    dropMesh.setColorAt(i, dropTint.setHex(itemDef(d.id).color));
+    matrixDirty = true;
+    colorDirty = true;
+  }
+  for (let i = drops.length; i < dropMeshCap; i++) {
+    dropDummy.position.set(0, 0, 0);
+    dropDummy.scale.set(0, 0, 0);
+    dropDummy.updateMatrix();
+    dropMesh.setMatrixAt(i, dropDummy.matrix);
+    matrixDirty = true;
+  }
+  if (matrixDirty) dropMesh.instanceMatrix.needsUpdate = true;
+  if (colorDirty && dropMesh.instanceColor) dropMesh.instanceColor.needsUpdate = true;
 }
 
 // ============================================================ controls & player
@@ -1719,6 +1910,7 @@ const UP_Y = Object.freeze(new THREE.Vector3(0, 1, 0));
 const gUp = new THREE.Vector3(0, 1, 0);     // current "up" used by physics (snaps instantly)
 let upAxis = 'y', upSign = 1;               // gUp expressed as a signed world axis
 let curPlanet = null;                       // the cube planet whose gravity we're in, or null
+let prevPlanet = null;                      // track previous planet for milestone detection
 const qUpCur = new THREE.Quaternion();      // camera up-basis, eased toward qUpTarget for a smooth tumble
 const qUpTarget = new THREE.Quaternion();
 
@@ -1782,6 +1974,7 @@ const hurtEl = document.getElementById('hurt');
 const promptEl = document.getElementById('prompt');
 const heartsEl = document.getElementById('hearts');
 const hungerEl = document.getElementById('hunger');
+const hudStatsEl = document.getElementById('hudStats');
 const deathEl = document.getElementById('death');
 const joinEl = document.getElementById('join');
 const joinForm = document.getElementById('joinBox');
@@ -1791,6 +1984,10 @@ const teacherPanel = document.getElementById('teacherPanel');
 const studentList = document.getElementById('studentList');
 const teleportAllBtn = document.getElementById('teleportAll');
 const resetWorldBtn = document.getElementById('resetWorld');
+const timerEl = document.getElementById('classTimer');
+const timerSecondsInput = document.getElementById('timerSeconds');
+const startTimerBtn = document.getElementById('startTimerBtn');
+const clearTimerBtn = document.getElementById('clearTimerBtn');
 const mpStatus = document.getElementById('mpStatus');
 const leaderboardEl = document.getElementById('leaderboard');
 const leaderboardBodyEl = document.getElementById('leaderboardBody');
@@ -1801,9 +1998,12 @@ let cursorUIMode = false;
 let promptFlash = 0, contextPrompt = '', scaleTuneT = 0;
 let partyModeT = 0;
 const autoToggleQueue = [];
+let classTimerEndAt = null;
+let classTimerInterval = null;
 
 overlay.addEventListener('click', () => { if (joinEl.classList.contains('hidden')) controls.lock(); });
 controls.addEventListener('lock', () => overlay.classList.add('hidden'));
+controls.addEventListener('lock', resumeSfx);
 controls.addEventListener('unlock', () => {
   if (!trackpadMode) velocity.set(0, 0, 0);
 });
@@ -1837,6 +2037,117 @@ function setPrompt(text, ttl = 0) {
   promptEl.textContent = text;
   promptEl.style.display = 'block';
 }
+
+// ============================================================ audio
+// Lightweight procedural SFX only: one shared AudioContext, lazily resumed after a user gesture.
+const SFX_STORAGE_KEY = 'mc_sfx_v1';
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+const sfxState = {
+  ctx: null,
+  master: null,
+  noise: null,
+  enabled: localStorage.getItem(SFX_STORAGE_KEY) !== 'off',
+  footstepT: 0,
+};
+function ensureSfx() {
+  if (!AudioCtx) return null;
+  if (sfxState.ctx) return sfxState.ctx;
+  const ctx = new AudioCtx();
+  const master = ctx.createGain();
+  master.gain.value = sfxState.enabled ? 0.18 : 0;
+  master.connect(ctx.destination);
+  const noiseBuf = ctx.createBuffer(1, Math.max(1, Math.floor(ctx.sampleRate * 0.18)), ctx.sampleRate);
+  const ch = noiseBuf.getChannelData(0);
+  for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1;
+  sfxState.ctx = ctx;
+  sfxState.master = master;
+  sfxState.noise = noiseBuf;
+  return ctx;
+}
+function resumeSfx() {
+  const ctx = ensureSfx();
+  if (ctx && ctx.state === 'suspended') ctx.resume().catch(() => {});
+}
+function setSfxEnabled(on) {
+  sfxState.enabled = !!on;
+  localStorage.setItem(SFX_STORAGE_KEY, on ? 'on' : 'off');
+  ensureSfx();
+  if (sfxState.master) sfxState.master.gain.setTargetAtTime(on ? 0.18 : 0, sfxState.ctx.currentTime, 0.01);
+}
+function sfxEnv(node, value, start, peak, end) {
+  node.gain.setValueAtTime(0.0001, start);
+  node.gain.linearRampToValueAtTime(value, start + peak);
+  node.gain.exponentialRampToValueAtTime(0.0001, start + end);
+}
+function sfxTone(now, freqA, freqB, dur, gain = 0.2, type = 'square') {
+  const ctx = sfxState.ctx;
+  const osc = ctx.createOscillator();
+  const amp = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freqA, now);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(30, freqB), now + dur);
+  sfxEnv(amp, gain, now, Math.min(0.012, dur * 0.2), dur);
+  osc.connect(amp).connect(sfxState.master);
+  osc.start(now);
+  osc.stop(now + dur + 0.02);
+}
+function sfxNoise(now, dur, gain = 0.1, hp = 700, lp = 4000) {
+  const ctx = sfxState.ctx;
+  const src = ctx.createBufferSource();
+  const amp = ctx.createGain();
+  const high = ctx.createBiquadFilter();
+  const low = ctx.createBiquadFilter();
+  src.buffer = sfxState.noise;
+  high.type = 'highpass';
+  high.frequency.setValueAtTime(hp, now);
+  low.type = 'lowpass';
+  low.frequency.setValueAtTime(lp, now);
+  sfxEnv(amp, gain, now, Math.min(0.01, dur * 0.25), dur);
+  src.connect(high).connect(low).connect(amp).connect(sfxState.master);
+  src.start(now);
+  src.stop(now + dur + 0.02);
+}
+function playSfx(name) {
+  const ctx = ensureSfx();
+  if (!ctx || !sfxState.enabled || ctx.state !== 'running') return;
+  const now = ctx.currentTime;
+  if (name === 'blockBreak') {
+    sfxNoise(now, 0.07, 0.11, 500, 2200);
+    sfxTone(now, 180, 80, 0.08, 0.05, 'triangle');
+  } else if (name === 'blockPlace') {
+    sfxTone(now, 240, 170, 0.055, 0.08, 'square');
+    sfxNoise(now, 0.035, 0.03, 700, 2600);
+  } else if (name === 'footstep') {
+    sfxNoise(now, 0.03, 0.018, 180, 900);
+    sfxTone(now, 120, 90, 0.035, 0.012, 'triangle');
+  } else if (name === 'playerHurt') {
+    sfxTone(now, 420, 180, 0.11, 0.1, 'sawtooth');
+    sfxNoise(now, 0.08, 0.035, 900, 5000);
+  } else if (name === 'eatDrink') {
+    sfxNoise(now, 0.04, 0.045, 500, 2600);
+    sfxTone(now + 0.03, 620, 420, 0.05, 0.035, 'triangle');
+  } else if (name === 'mobHurt') {
+    sfxTone(now, 320, 140, 0.08, 0.06, 'square');
+  } else if (name === 'mobDeath') {
+    sfxTone(now, 260, 70, 0.13, 0.085, 'sawtooth');
+    sfxNoise(now + 0.02, 0.08, 0.04, 250, 1800);
+  } else if (name === 'itemPickup') {
+    sfxTone(now, 920, 1280, 0.045, 0.05, 'triangle');
+    sfxTone(now + 0.02, 1280, 1680, 0.04, 0.035, 'triangle');
+  } else if (name === 'uiClick') {
+    sfxTone(now, 780, 980, 0.04, 0.04, 'square');
+  }
+}
+function updateMovementSfx(dt, wantsMove, isGrounded, inWaterNow, isFlying, isShifting) {
+  if (!sfxState.enabled || !controlsActive() || dead) { sfxState.footstepT = 0; return; }
+  if (!wantsMove || !isGrounded || inWaterNow || isFlying) { sfxState.footstepT = 0; return; }
+  sfxState.footstepT -= dt;
+  if (sfxState.footstepT > 0) return;
+  playSfx('footstep');
+  sfxState.footstepT = isShifting ? 0.24 : 0.34;
+}
+renderer.domElement.addEventListener('pointerdown', resumeSfx, { passive: true });
+window.addEventListener('click', resumeSfx, { passive: true, once: true });
 function tossHotbarItem(all = false) {
   const id = hotbar[currentSlot];
   if (!id || !Number.isFinite(counts[currentSlot]) || counts[currentSlot] <= 0) return false;
@@ -1918,8 +2229,17 @@ addEventListener('keydown', (e) => {
   }
   if (e.code === 'KeyB') { togglePartyMode(); return; }
   if (e.code === 'KeyL' && MULTIPLAYER && multiplayerJoined) { leaderboardEl.classList.toggle('hidden'); return; }
+  if (e.code === 'KeyM') {
+    e.preventDefault();
+    if (sfxState.enabled) playSfx('uiClick');
+    else resumeSfx();
+    setSfxEnabled(!sfxState.enabled);
+    if (sfxState.enabled) playSfx('uiClick');
+    showToast('Sound Effects', sfxState.enabled ? 'Enabled' : 'Muted', 1.4);
+    return;
+  }
   if (e.code === 'KeyZ' && controlsActive() && !invOpen && !furnaceOpen && !chestOpen) { e.preventDefault(); giftItem(); return; }
-  if (e.code === 'KeyP' && controlsActive()) { localStorage.removeItem('mc_save_v1'); location.reload(); }
+  if (e.code === 'KeyP' && controlsActive()) { if (confirm("Delete your world? This can't be undone.")) { localStorage.removeItem('mc_save_v1'); location.reload(); } }
   if (e.code.startsWith('Digit')) { const n = +e.code.slice(5) - 1; if (n >= 0 && n < 9) selectSlot(n); }
 });
 
@@ -2025,6 +2345,11 @@ function updateHunger() {
   }
   hungerEl.innerHTML = s;
 }
+function updateHudStats() {
+  const p = controls.getObject().position;
+  const timeStr = isNight ? 'NIGHT' : 'DAY';
+  hudStatsEl.textContent = `${p.x.toFixed(0)} / ${(p.y - PLAYER_H).toFixed(0)} / ${p.z.toFixed(0)}   ${timeStr}`;
+}
 function waterAtPlayer(pos) {
   const eye = world.get(key(Math.floor(pos.x), Math.floor(pos.y), Math.floor(pos.z)));
   const feet = world.get(key(
@@ -2038,6 +2363,7 @@ function eatFood(itemId) {
   if (!food || eatCooldown > 0 || dead) return false;
   if (gameMode === 'survival' && hunger >= MAX_HUNGER && health >= MAX_HP) return false;
   eatCooldown = 0.45;
+  playSfx('eatDrink');
   if (gameMode === 'survival') {
     hunger = Math.min(MAX_HUNGER, hunger + food.hunger);
     health = Math.min(MAX_HP, health + food.heal);
@@ -2069,6 +2395,7 @@ function eatFood(itemId) {
 function damagePlayer(dmg) {
   if (gameMode !== 'survival' || dead) return;
   health -= dmg; lastHurt = clock; hurtFlash = 0.55; updateHearts();
+  playSfx('playerHurt');
   markSaveDirty();
   if (health <= 0) die();
 }
@@ -3312,14 +3639,16 @@ function hurtMob(mob, dmg, dir) {
   mob.group.position.x += dir.x * 0.6;
   mob.group.position.z += dir.z * 0.6;
   if (mob.hp <= 0) {
+    playSfx('mobDeath');
     spawnParticles(mob.group.position.x - 0.5, mob.group.position.y, mob.group.position.z - 0.5, mob.kind.body, 14);
     if (partyModeT > 0 || mob.kind.name === 'Duck' || mob.kind.name === 'Goat') {
       spawnConfettiBurst(mob.group.position.x - 0.5, mob.group.position.y, mob.group.position.z - 0.5, 20);
       setPrompt(`${mob.kind.name} pinata!`, 0.9);
     }
+    if (!milestoneSeen.firstMobKilled) { milestoneSeen.firstMobKilled = true; showToast('First Kill!', 'You defeated your first mob', 3); markSaveDirty(); }
     if (gameMode === 'survival') for (const [id, cnt] of mobDrop(mob.kind)) addToInventory(id, cnt);
     removeMob(mob);
-  }
+  } else playSfx('mobHurt');
 }
 // loot table by mob kind
 function mobDrop(kind) {
@@ -3327,6 +3656,9 @@ function mobDrop(kind) {
   const r = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
   if (kind.name === 'Spider') out.push(['string', r(1, 2)]);
   else if (kind.name === 'Zombie') { if (Math.random() < 0.4) out.push(['raw_meat', 1]); }
+  else if (kind.name === 'Cow') out.push(['leather', r(1, 3)]);
+  else if (kind.name === 'Chicken') out.push(['feather', r(1, 2)]);
+  else if (kind.name === 'Sheep') out.push(['wool', 1]);
   else if (!kind.hostile && !kind.fly) out.push(['raw_meat', r(1, 2)]);   // passive livestock
   return out;
 }
@@ -3349,7 +3681,7 @@ function explodeCreeper(mob) {
     if (dx * dx + dy * dy + dz * dz > R * R) continue;
     const k = key(bx + dx, by + dy, bz + dz), t = world.get(k);
     if (t && t !== 'bedrock') {
-      world.delete(k);
+      deleteWorldBlock(k);
       const owned = chunkOwnedBlocks(...chunkOf(bx + dx, bz + dz)); if (owned) owned.delete(k);
       markDirty(bx + dx, by + dy, bz + dz);
     }
@@ -3565,15 +3897,17 @@ function breakBlock(x, y, z) {
   }
   if (broken === 'bed' && Math.floor(respawnPoint.x) === x && Math.floor(respawnPoint.z) === z)
     respawnPoint = SPAWN.clone();                        // lost your bed → back to world spawn
-  world.delete(k);
+  deleteWorldBlock(k);
   edits.set(k, null);
   markSaveDirty();
   const owned = chunkOwnedBlocks(...chunkOf(x, z)); if (owned) owned.delete(k);
   markDirty(x, y, z);
   spawnParticles(x, y, z, BLOCKS[broken].color, 10);
+  playSfx('blockBreak');
   if (broken === 'pumpkin' || broken === 'cheese') spawnConfettiBurst(x, y, z, 18);
   broadcastBlockEdit(x, y, z, null);
   if (multiplayerJoined && classQuest.active && classQuest.type === 'mine') sendRoom({ type: 'quest:progress', qtype: 'mine', n: 1 });
+  if (!milestoneSeen.firstBlockMined) { milestoneSeen.firstBlockMined = true; showToast('First Block!', 'You mined your first block', 3); markSaveDirty(); }
   if (gameMode === 'survival' && isBlock(broken) && broken !== 'water') {
     const held = hotbar[currentSlot];
     if (canHarvest(broken, held)) { const d = dropOf(broken); if (d) spawnDrop(d, x, y, z); }
@@ -3667,7 +4001,7 @@ function rightClick() {
   for (const tgt of targets) {
     if (placed >= allow) break;
     const { x: nx, y: ny, z: nz } = tgt;
-    world.set(key(nx, ny, nz), held);
+    setWorldBlock(key(nx, ny, nz), held, nx, ny, nz);
     edits.set(key(nx, ny, nz), held);
     markSaveDirty();
     const owned = chunkOwnedBlocks(...chunkOf(nx, nz)); if (owned) owned.add(key(nx, ny, nz));
@@ -3677,6 +4011,7 @@ function rightClick() {
     placed++;
   }
   if (placed <= 0) return;
+  playSfx('blockPlace');
   const last = targets[Math.min(placed - 1, targets.length - 1)];
   if (held === 'pumpkin') {
     spawnConfettiBurst(last.x, last.y, last.z, 12 + placed * 2);
@@ -3708,7 +4043,7 @@ function toggleBlock(x, y, z, cur, quiet = false) {
     const q = autoToggleQueue[i];
     if (q.x === x && q.y === y && q.z === z) autoToggleQueue.splice(i, 1);
   }
-  world.set(k, next);
+  setWorldBlock(k, next, x, y, z);
   edits.set(k, next);
   markSaveDirty();
   const owned = chunkOwnedBlocks(...chunkOf(x, z)); if (owned) owned.add(k);
@@ -3777,11 +4112,13 @@ function swordModel(bladeCol) {
   g.rotation.set(0, 0.3, 0.5); g.scale.set(0.9, 0.9, 0.9);
   return g;
 }
-function buildHeld(itemId) {
-  vmHand.clear();
-  if (!itemId) { return; }   // empty slot — empty hand
+// Build a posed THREE.Group for the item in hand, or null for an empty hand.
+// Shared by the first-person viewmodel (buildHeld) and the third-person avatar
+// hand (updateRemoteHeld), so held items look the same to everyone.
+function makeItemModel(itemId) {
+  if (!itemId) return null;
   if (itemId === 'sword') {
-    const g = swordModel(0xc9d2da); vmHand.add(g);
+    return swordModel(0xc9d2da);
   } else if (itemId === 'bow') {
     const wood = 0x7a5024;
     const g = new THREE.Group();
@@ -3791,7 +4128,7 @@ function buildHeld(itemId) {
     const string = box(0.012, 0.86, 0.012, 0xe8e2d0, -0.07, 0, 0);
     g.add(upper, lower, grip, string);
     g.rotation.set(0, 0.15, 0.12); g.scale.set(0.95, 0.95, 0.95);
-    vmHand.add(g);
+    return g;
   } else if (itemId === 'gun') {
     const g = new THREE.Group();
     g.add(box(0.12, 0.15, 0.5, 0x33373c, 0, 0.04, -0.05));    // receiver
@@ -3800,7 +4137,7 @@ function buildHeld(itemId) {
     g.add(box(0.1, 0.18, 0.13, 0x202327, 0, -0.04, 0.18));    // magazine
     g.position.set(-0.05, 0.16, 0.18);
     g.rotation.set(0.05, 0.16, 0); g.scale.set(0.92, 0.92, 0.92);
-    vmHand.add(g);
+    return g;
   } else if (itemId === 'cheese_wedge') {
     const g = new THREE.Group();
     g.add(box(0.42, 0.24, 0.42, FOODS[itemId].color, 0, 0, 0));
@@ -3809,12 +4146,12 @@ function buildHeld(itemId) {
     g.add(box(0.08, 0.05, 0.08, 0x9a6f1d, -0.04, -0.05, -0.14));
     g.scale.set(0.9, 0.9, 0.9);
     g.rotation.set(0.25, 0.7, 0.15);
-    vmHand.add(g);
+    return g;
   } else if (TOOLS[itemId] && TOOLS[itemId].tool) {
     // tiered pickaxe / axe / shovel / sword: flat sprite-like head + stick handle
     const def = TOOLS[itemId];
     const headCol = def.color;
-    if (def.tool === 'sword') { vmHand.add(swordModel(headCol)); return; }
+    if (def.tool === 'sword') return swordModel(headCol);
     const g = new THREE.Group();
     g.add(box(0.05, 0.66, 0.05, 0x6b4a2b, 0, -0.06, 0));   // handle
     if (def.tool === 'pick') {
@@ -3828,13 +4165,12 @@ function buildHeld(itemId) {
       g.add(box(0.22, 0.26, 0.04, headCol, 0, 0.34, 0));      // spade
     }
     g.rotation.set(0, 0.3, 0.5); g.scale.set(0.9, 0.9, 0.9);
-    vmHand.add(g);
+    return g;
   } else if (isBlock(itemId)) {
     const mats = Array.from({ length: 6 }, () => materials[itemId]);
     const c = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.5, 0.5), mats);
-    c.position.set(0, 0, 0);
     c.rotation.set(0.4, 0.7, 0);
-    vmHand.add(c);
+    return c;
   } else if (isSpawnEgg(itemId)) {
     const egg = SPAWN_EGGS[itemId];
     const g = new THREE.Group();
@@ -3843,13 +4179,18 @@ function buildHeld(itemId) {
     g.add(box(0.24, 0.20, 0.24, egg.kind.head, 0, 0.22, 0));  // lighter top
     g.add(box(0.08, 0.08, 0.08, 0xffffff, 0.06, 0.18, 0.12)); // specular dot
     g.rotation.set(0.2, 0.5, 0.1);
-    vmHand.add(g);
+    return g;
   } else {
     // material item / food: small held nugget
     const c = box(0.32, 0.32, 0.12, itemDef(itemId).color, 0, 0, 0);
     c.rotation.set(0.3, 0.6, 0.1);
-    vmHand.add(c);
+    return c;
   }
+}
+function buildHeld(itemId) {
+  vmHand.clear();
+  const m = makeItemModel(itemId);
+  if (m) vmHand.add(m);
 }
 function updateViewmodel(dt) {
   if (swingT > 0) {
@@ -4029,6 +4370,7 @@ function addToInventory(id, n, opts = {}) {
     if (got > 0) setPrompt(`Picked up ${got} ${itemName(id)}`, 0.95);
     else setPrompt(`No room for ${itemName(id)}`, 0.95);
   }
+  if (id === 'diamond' && wanted > n && !milestoneSeen.firstDiamond) { milestoneSeen.firstDiamond = true; showToast('First Diamond!', 'You found a diamond', 3); markSaveDirty(); }
   return n <= 0;
 }
 
@@ -4181,10 +4523,12 @@ function craftTake() {
 }
 function craftTakeToInventory() {
   let made = 0;
+  let madeTool = false;
   while (true) {
     const r = craftMatch(); if (!r) break;
     const [oid, on] = r.out;
     if (storeIntoPlayer(oid, on) !== 0) break;
+    if (/_(pickaxe|axe|shovel|sword)$/.test(oid)) madeTool = true;
     for (let i = 0; i < 9; i++) if (craftSlots[i].id) {
       craftSlots[i].n--;
       if (craftSlots[i].n <= 0) { craftSlots[i].id = null; craftSlots[i].n = 0; }
@@ -4192,6 +4536,7 @@ function craftTakeToInventory() {
     made += on;
   }
   if (made > 0) { renderOpen(); setPrompt(`Crafted ${made}`, 0.9); }
+  if (madeTool && !milestoneSeen.firstToolCrafted) { milestoneSeen.firstToolCrafted = true; showToast('First Tool!', 'You crafted your first tool', 3); markSaveDirty(); }
 }
 
 // ---- furnace (single shared furnace inventory across all furnace blocks) ----
@@ -4491,6 +4836,35 @@ function closeInvScreens() {
 
 // ============================================================ persistence
 let lastSavedPlayer = null;
+let lastSentInventoryJson = '';
+function serializeInventoryState() {
+  return {
+    hotbar: [...hotbar],
+    counts: counts.map(c => Number.isFinite(c) ? c : null),   // Infinity → null for JSON
+    store: [...store],
+    storeCounts: [...storeCounts],
+    currentSlot,
+  };
+}
+function applyInventoryState(data) {
+  if (!data || typeof data !== 'object') return;
+  if (data.hotbar) data.hotbar.forEach((id, i) => { hotbar[i] = id; });
+  if (data.counts) data.counts.forEach((c, i) => { counts[i] = c == null ? Infinity : c; });
+  else hotbar.forEach((id, i) => { counts[i] = id == null ? 0 : (isBlock(id) ? 64 : Infinity); });   // legacy saves
+  if (data.store) data.store.forEach((id, i) => { store[i] = id; });
+  if (data.storeCounts) data.storeCounts.forEach((c, i) => { storeCounts[i] = c || 0; });
+  hotbar.forEach((_, i) => paintSlot(i));
+  selectSlot(typeof data.currentSlot === 'number' ? Math.max(0, Math.min(8, data.currentSlot)) : currentSlot);
+  renderOpen();
+}
+function sendInventorySave(force = false) {
+  if (!MULTIPLAYER || !multiplayerJoined || !ws || ws.readyState !== WebSocket.OPEN) return;
+  const payload = serializeInventoryState();
+  const json = JSON.stringify(payload);
+  if (!force && json === lastSentInventoryJson) return;
+  ws.send(JSON.stringify({ type: 'inv:save', ...payload }));
+  lastSentInventoryJson = json;
+}
 function saveGame(force = false) {
   if (MULTIPLAYER) return;
   const p = controls.getObject().position;
@@ -4501,29 +4875,33 @@ function saveGame(force = false) {
   if (!force && !saveDirty) return;
   const data = {
     edits: [...edits.entries()],
-    hotbar: [...hotbar],
-    counts: counts.map(c => Number.isFinite(c) ? c : null),   // Infinity → null for JSON
-    store: [...store],
-    storeCounts: [...storeCounts],
+    ...serializeInventoryState(),
     furnace: { input: furInput, fuel: furFuel, out: furOut },
     chests: [...chestStore.entries()],
     respawn: { x: respawnPoint.x, y: respawnPoint.y, z: respawnPoint.z },
-    currentSlot,
     gameMode,
     health,
     hunger,
-    player: { x: p.x, y: p.y, z: p.z }
+    player: { x: p.x, y: p.y, z: p.z },
+    milestoneSeen
   };
   localStorage.setItem('mc_save_v1', JSON.stringify(data));
   lastSavedPlayer = { x: p.x, y: p.y, z: p.z };
   saveDirty = false;
 }
 function scheduleSaveGame(force = false) {
-  if (MULTIPLAYER) return;
+  if (MULTIPLAYER) {
+    if ('requestIdleCallback' in window && !force) window.requestIdleCallback(() => sendInventorySave(false), { timeout: 2000 });
+    else setTimeout(() => sendInventorySave(force), 0);
+    return;
+  }
   if ('requestIdleCallback' in window && !force) window.requestIdleCallback(() => saveGame(false), { timeout: 2000 });
   else setTimeout(() => saveGame(force), 0);
 }
-addEventListener('beforeunload', () => saveGame(true));
+addEventListener('beforeunload', () => {
+  if (MULTIPLAYER) sendInventorySave(true);
+  else saveGame(true);
+});
 setInterval(() => scheduleSaveGame(false), 10000);
 
 ;(function loadGame() {
@@ -4533,11 +4911,7 @@ setInterval(() => scheduleSaveGame(false), 10000);
   let data; try { data = JSON.parse(raw); } catch (e) { return; }
   // populate edits map only — chunks apply these as they generate (don't touch world here)
   if (data.edits) for (const [k, v] of data.edits) edits.set(k, v);
-  if (data.hotbar) data.hotbar.forEach((id, i) => { hotbar[i] = id; });
-  if (data.counts) data.counts.forEach((c, i) => { counts[i] = c == null ? Infinity : c; });
-  else hotbar.forEach((id, i) => { counts[i] = id == null ? 0 : (isBlock(id) ? 64 : Infinity); });   // legacy saves
-  if (data.store) data.store.forEach((id, i) => { store[i] = id; });
-  if (data.storeCounts) data.storeCounts.forEach((c, i) => { storeCounts[i] = c || 0; });
+  applyInventoryState(data);
   if (data.furnace) {
     const f = data.furnace;
     if (f.input) { furInput.id = f.input.id; furInput.n = f.input.n; }
@@ -4554,9 +4928,8 @@ setInterval(() => scheduleSaveGame(false), 10000);
     heartsEl.style.display = 'block'; hungerEl.style.display = 'block';
     updateHearts(); updateHunger();
   }
-  hotbar.forEach((_, i) => paintSlot(i));
-  if (typeof data.currentSlot === 'number') selectSlot(data.currentSlot);
   if (data.player) controls.getObject().position.set(data.player.x, data.player.y, data.player.z);
+  if (data.milestoneSeen) milestoneSeen = data.milestoneSeen;
   const p = controls.getObject().position;
   lastSavedPlayer = { x: p.x, y: p.y, z: p.z };
   saveDirty = false;
@@ -4652,6 +5025,7 @@ function closeMenu() {
 
 // ============================================================ classroom multiplayer
 let ws = null, localPlayerId = null, multiplayerJoined = false, syncT = 0;
+let lastServerWorldTime = null, lastServerWorldTimeAt = 0;
 const remotePlayers = new Map();
 
 function localTransform() {
@@ -4661,6 +5035,18 @@ function localTransform() {
 
 function sendRoom(message) {
   if (ws && ws.readyState === WebSocket.OPEN && multiplayerJoined) ws.send(JSON.stringify(message));
+}
+
+function syncWorldTimeFromServer(worldTime) {
+  if (!Number.isFinite(worldTime)) return;
+  const now = performance.now();
+  if (lastServerWorldTime != null) {
+    const predicted = lastServerWorldTime + (now - lastServerWorldTimeAt) / 1000;
+    if (Math.abs(predicted - worldTime) < 0.35) return;
+  }
+  clock = worldTime;
+  lastServerWorldTime = worldTime;
+  lastServerWorldTimeAt = now;
 }
 
 function setMpStatus(text) {
@@ -4690,23 +5076,69 @@ function labelSprite(name, color) {
   return sprite;
 }
 
+// A limb hangs from a pivot group placed at the shoulder/hip, so rotating the
+// pivot swings it from the joint (not the middle). Sleeve + skin hand/foot are
+// stacked as children; the hit-flash material list gets both meshes.
+function makeLimb(parts, upperCol, lowerCol, len, jointX, jointY) {
+  const pivot = new THREE.Group();
+  pivot.position.set(jointX, jointY, 0);
+  const w = 0.18, d = 0.2, lower = 0.2;
+  const sleeve = box(w, len - lower, d, upperCol, 0, -(len - lower) / 2, 0);
+  const end = box(w + 0.01, lower, d + 0.01, lowerCol, 0, -(len - lower / 2), 0);
+  sleeve.material = sleeve.material.clone(); end.material = end.material.clone();
+  parts.push(sleeve, end);
+  pivot.add(sleeve, end);
+  return pivot;
+}
 function makeRemoteAvatar(player) {
-  const color = new THREE.Color(player.color || '#66d9ef').getHex();
+  const a = normalizeAppearance(player.appearance, player.color);
+  const skin = new THREE.Color(a.skin).getHex();
+  const shirt = new THREE.Color(a.shirt).getHex();
+  const pants = new THREE.Color(a.pants).getHex();
+  const hair = new THREE.Color(a.hair).getHex();
   const group = new THREE.Group();
-  const parts = [
-    box(0.55, 0.9, 0.32, color, 0, 0.85, 0),
-    box(0.42, 0.42, 0.42, 0xf0c7a0, 0, 1.55, 0),
-    box(0.18, 0.75, 0.2, color, -0.45, 0.85, 0),
-    box(0.18, 0.75, 0.2, color, 0.45, 0.85, 0),
-    box(0.2, 0.75, 0.22, 0x283342, -0.16, 0.12, 0),
-    box(0.2, 0.75, 0.22, 0x283342, 0.16, 0.12, 0),
-  ];
-  parts.forEach(p => { p.material = p.material.clone(); group.add(p); });   // per-instance, see buildBody
+  const parts = [];
+  const solid = (w, h, d, col, x, y, z) => {
+    const m = box(w, h, d, col, x, y, z); m.material = m.material.clone();
+    parts.push(m); group.add(m); return m;
+  };
+  // torso, head, hair cap + back, eyes
+  solid(0.55, 0.9, 0.32, shirt, 0, 0.85, 0);
+  solid(0.46, 0.44, 0.44, skin, 0, 1.55, 0);
+  solid(0.5, 0.14, 0.5, hair, 0, 1.79, 0);
+  solid(0.5, 0.3, 0.12, hair, 0, 1.62, -0.2);
+  solid(0.09, 0.1, 0.02, 0x1c1c1c, -0.11, 1.56, 0.225);
+  solid(0.09, 0.1, 0.02, 0x1c1c1c, 0.11, 1.56, 0.225);
+  // limbs on joint pivots (arms at the shoulder, legs at the hip)
+  const armL = makeLimb(parts, shirt, skin, 0.75, -0.45, 1.22);
+  const armR = makeLimb(parts, shirt, skin, 0.75, 0.45, 1.22);
+  const legL = makeLimb(parts, pants, 0x40372c, 0.75, -0.16, 0.5);
+  const legR = makeLimb(parts, pants, 0x40372c, 0.75, 0.16, 0.5);
+  group.add(armL, armR, legL, legR);
+  // held-item anchor: at the right hand, facing forward
+  const hand = new THREE.Group();
+  hand.position.set(0, -0.68, 0.12);
+  hand.rotation.set(0.35, 0, 0);
+  hand.scale.setScalar(0.62);
+  armR.add(hand);
   group.userData.parts = parts;
+  group.userData.limbs = { armL, armR, legL, legR };
+  group.userData.hand = hand;
+  group.userData.swing = 0;
   group.add(labelSprite(player.name || 'Student', player.color || '#66d9ef'));
   group.userData.target = new THREE.Vector3();
   scene.add(group);
+  updateRemoteHeld(group, player.held);
   return group;
+}
+// Attach (or clear) the small held-item model in the avatar's hand.
+function updateRemoteHeld(group, itemId) {
+  const hand = group.userData.hand;
+  if (!hand || group.userData.heldId === itemId) return;
+  group.userData.heldId = itemId;
+  hand.clear();
+  const m = makeItemModel(itemId);
+  if (m) hand.add(m);
 }
 
 function upsertRemotePlayer(player) {
@@ -4723,6 +5155,7 @@ function upsertRemotePlayer(player) {
     entry.group.position.copy(entry.target);
     entry.group.rotation.y = player.transform.yaw || 0;
   }
+  if ('held' in player) updateRemoteHeld(entry.group, player.held);
   paintStudentList();
 }
 
@@ -4750,6 +5183,13 @@ function paintStudentList() {
     row.className = 'studentRow';
     const name = document.createElement('span');
     name.textContent = e.player.name || 'Student';
+    const actions = document.createElement('div');
+    actions.className = 'studentRowActions';
+    const gotoBtn = document.createElement('button');
+    gotoBtn.textContent = 'Go to';
+    gotoBtn.addEventListener('click', () => {
+      sendRoom({ type: 'teacher:gotoPlayer', target: e.player.id });
+    });
     const btn = document.createElement('button');
     const isCreative = e.mode === 'creative';
     btn.textContent = isCreative ? '→ Survival' : '→ Creative';
@@ -4758,21 +5198,63 @@ function paintStudentList() {
       sendRoom({ type: 'teacher:setMode', target: e.player.id, mode: e.mode });
       paintStudentList();
     });
-    row.append(name, btn);
+    actions.append(gotoBtn, btn);
+    row.append(name, actions);
     studentList.append(row);
   }
+}
+
+function formatTimerSeconds(totalSeconds) {
+  const total = Math.max(0, Math.ceil(totalSeconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  if (hours > 0) return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+}
+
+function renderClassTimer() {
+  if (!Number.isFinite(classTimerEndAt)) {
+    timerEl.classList.add('hidden');
+    timerEl.textContent = '00:00';
+    return;
+  }
+  const remainingMs = classTimerEndAt - Date.now();
+  if (remainingMs <= 0) {
+    classTimerEndAt = null;
+    timerEl.classList.add('hidden');
+    timerEl.textContent = '00:00';
+    if (classTimerInterval) {
+      clearInterval(classTimerInterval);
+      classTimerInterval = null;
+    }
+    return;
+  }
+  timerEl.textContent = formatTimerSeconds(remainingMs / 1000);
+  timerEl.classList.remove('hidden');
+}
+
+function applyClassTimer(timer) {
+  classTimerEndAt = timer && Number.isFinite(timer.endAt) ? timer.endAt : null;
+  if (!classTimerEndAt && timer && Number.isFinite(timer.seconds)) classTimerEndAt = Date.now() + timer.seconds * 1000;
+  if (classTimerInterval) {
+    clearInterval(classTimerInterval);
+    classTimerInterval = null;
+  }
+  renderClassTimer();
+  if (classTimerEndAt) classTimerInterval = setInterval(renderClassTimer, 1000);
 }
 
 function applySharedBlockEdit(x, y, z, type) {
   if (type !== null && !isBlock(type)) return;
   const k = key(x, y, z);
   if (type === null) {
-    world.delete(k);
+    deleteWorldBlock(k);
     edits.set(k, null);
     markSaveDirty();
     const owned = chunkOwnedBlocks(...chunkOf(x, z)); if (owned) owned.delete(k);
   } else {
-    world.set(k, type);
+    setWorldBlock(k, type, x, y, z);
     edits.set(k, type);
     markSaveDirty();
     const owned = chunkOwnedBlocks(...chunkOf(x, z)); if (owned) owned.add(k);
@@ -4810,6 +5292,8 @@ const roomMessageHandlers = {
   'room:init'(message) {
     localPlayerId = message.id;
     multiplayerJoined = true;
+    lastSentInventoryJson = '';
+    syncWorldTimeFromServer(message.worldTime);
     // server is authoritative on teacher status — demote if a teacher already exists
     if (IS_TEACHER && message.teacher === false) {
       IS_TEACHER = false;
@@ -4818,6 +5302,7 @@ const roomMessageHandlers = {
     }
     joinEl.classList.add('hidden');
     setMpStatus(IS_TEACHER ? 'Teacher host connected' : 'Class world connected');
+    if (message.savedInventory) applyInventoryState(message.savedInventory);
     for (const edit of message.edits || []) {
       const [x, y, z] = edit.key.split(',').map(Number);
       applySharedBlockEdit(x, y, z, edit.type);
@@ -4825,6 +5310,7 @@ const roomMessageHandlers = {
     for (const player of message.players || []) upsertRemotePlayer(player);
     syncNetMobs(message.mobs || []);
     if (message.quest) updateQuestDisplay(message.quest);
+    applyClassTimer(message.timer || null);
     if (message.leaderboard) updateLeaderboard(message.leaderboard);
     if (IS_TEACHER) { teacherPanel.classList.remove('hidden'); paintStudentList(); }
   },
@@ -4837,9 +5323,13 @@ const roomMessageHandlers = {
   'player:update'(message) {
     const entry = remotePlayers.get(message.id);
     if (entry && message.transform) {
-      entry.target.set(message.transform.x, message.transform.y - PLAYER_H, message.transform.z);
+      const next = new THREE.Vector3(message.transform.x, message.transform.y - PLAYER_H, message.transform.z);
+      // horizontal move since the last update -> drive the walk animation
+      if (Math.hypot(next.x - entry.target.x, next.z - entry.target.z) > 0.02) entry.moveT = 0.35;
+      entry.target.copy(next);
       entry.group.rotation.y = message.transform.yaw || 0;
     }
+    if (entry && 'held' in message) updateRemoteHeld(entry.group, message.held);
   },
   'block:set'(message) {
     // guard against a malformed edit silently corrupting the world Map
@@ -4848,6 +5338,7 @@ const roomMessageHandlers = {
   },
   'world:reset'() { resetSharedWorld(); },
   'teacher:teleport'(message) { if (message.transform) teleportTo(message.transform); },
+  'timer:set'(message) { applyClassTimer(message.timer || null); },
   'mode:set'(message) { setMode(message.mode === 'creative' ? 'creative' : 'survival'); },
   'quest:update'(message) { if (message.quest) updateQuestDisplay(message.quest); },
   'quest:done'(message) {
@@ -4870,7 +5361,10 @@ const roomMessageHandlers = {
 };
 
 const combatMessageHandlers = {
-  'mob:sync'(message) { syncNetMobs(message.mobs || []); },
+  'mob:sync'(message) {
+    syncWorldTimeFromServer(message.worldTime);
+    syncNetMobs(message.mobs || []);
+  },
   'mob:hurt'(message) { flashNetMob(message.id); },
   'mob:dead'(message) {
     const k = KIND_BY_NAME[message.kind];
@@ -4894,7 +5388,9 @@ function connectMultiplayer(name, teacher = false) {
   const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   ws = new WebSocket(`${proto}//${location.host}/room`);
   ws.addEventListener('open', () => {
-    ws.send(JSON.stringify({ type: 'join', name, teacher, color: LOCAL_COLOR, transform: localTransform() }));
+    lastSentInventoryJson = '';
+    ws.send(JSON.stringify({ type: 'join', name, teacher, color: LOCAL_APPEARANCE.shirt,
+      appearance: LOCAL_APPEARANCE, held: hotbar[currentSlot], transform: localTransform() }));
   });
   ws.addEventListener('message', (event) => {
     let message;
@@ -4903,6 +5399,7 @@ function connectMultiplayer(name, teacher = false) {
   });
   ws.addEventListener('close', () => {
     multiplayerJoined = false;
+    lastSentInventoryJson = '';
     setMpStatus('Class world disconnected');
     if (!IS_TEACHER) joinEl.classList.remove('hidden');
   });
@@ -4917,10 +5414,22 @@ function syncMultiplayer(dt) {
   syncT -= dt;
   if (syncT <= 0) {
     syncT = 0.1;
-    sendRoom({ type: 'player:update', transform: localTransform() });
+    sendRoom({ type: 'player:update', transform: localTransform(), held: hotbar[currentSlot] });
   }
   for (const entry of remotePlayers.values()) {
     entry.group.position.lerp(entry.target, 1 - Math.exp(-dt / 0.12));
+    // walk animation: swing arms/legs from their joints while moving, ease to rest
+    entry.moveT = Math.max(0, (entry.moveT || 0) - dt);
+    const ud = entry.group.userData;
+    ud.swing = (ud.swing || 0) + dt * (entry.moveT > 0 ? 10 : 0);
+    const want = entry.moveT > 0 ? 0.55 : 0;
+    ud.swingAmt = (ud.swingAmt || 0) + ((want - (ud.swingAmt || 0)) * (1 - Math.exp(-dt / 0.12)));
+    const s = Math.sin(ud.swing) * ud.swingAmt;
+    const L = ud.limbs;
+    if (L) {
+      L.armL.rotation.x = s;  L.armR.rotation.x = -s;
+      L.legL.rotation.x = -s; L.legR.rotation.x = s;
+    }
     if (entry.hitT > 0) {
       entry.hitT -= dt;
       if (entry.hitT <= 0) for (const p of entry.group.userData.parts) p.material.emissive.setHex(0x000000);
@@ -5150,6 +5659,16 @@ if (MULTIPLAYER) {
     joinEl.classList.remove('hidden');
     setMpStatus('Enter your name to join');
   }
+  // customization inputs -> LOCAL_APPEARANCE (persisted), pre-filled from storage
+  const customInputs = { skin: 'cSkin', shirt: 'cShirt', pants: 'cPants', hair: 'cHair' };
+  for (const [part, id] of Object.entries(customInputs)) {
+    const input = document.getElementById(id);
+    input.value = LOCAL_APPEARANCE[part];
+    input.addEventListener('input', () => {
+      LOCAL_APPEARANCE = { ...LOCAL_APPEARANCE, [part]: input.value };
+      saveAppearance(LOCAL_APPEARANCE);
+    });
+  }
   joinForm.addEventListener('submit', (e) => {
     e.preventDefault();
     const name = studentNameInput.value.trim();
@@ -5161,6 +5680,14 @@ if (MULTIPLAYER) {
   });
   teleportAllBtn.addEventListener('click', () => {
     sendRoom({ type: 'teacher:teleportAll', transform: localTransform() });
+  });
+  startTimerBtn.addEventListener('click', () => {
+    const seconds = Math.max(1, Math.min(86400, Math.round(Number(timerSecondsInput.value) || 0)));
+    timerSecondsInput.value = String(seconds);
+    sendRoom({ type: 'teacher:startTimer', seconds });
+  });
+  clearTimerBtn.addEventListener('click', () => {
+    sendRoom({ type: 'teacher:clearTimer' });
   });
   document.getElementById('setQuestBtn').addEventListener('click', () => {
     const qtype = document.getElementById('questType').value;
@@ -5401,9 +5928,9 @@ function tickFrame(dt) {
     if (keys['KeyA']) move.sub(right);
     const wantsMove = move.lengthSq() > 0;
     const inWater = waterAtPlayer(pos);
-    const sprinting = !flying && !inWater && gameMode === 'survival' && hunger > 6 &&
-      (keys['ControlLeft'] || keys['ControlRight']) && keys['KeyW'] && wantsMove;
-    const targetSpeed = flying ? FLY : inWater ? SWIM : sprinting ? SPRINT : WALK;
+    const shifting = !flying && !inWater && gameMode === 'survival' && hunger > 6 &&
+      (keys['ShiftLeft'] || keys['ShiftRight']) && keys['KeyW'] && wantsMove;
+    const targetSpeed = flying ? FLY : inWater ? SWIM : shifting ? SPRINT : WALK;
     const desired = _desiredMove.set(0, 0, 0);
     if (move.lengthSq() > 0) desired.copy(move).normalize().multiplyScalar(targetSpeed);
     const accel = wantsMove ? (inWater ? 9 : grounded(pos) ? 32 : 12) : (inWater ? 7 : grounded(pos) ? 24 : 4);
@@ -5450,10 +5977,11 @@ function tickFrame(dt) {
         } else if (gameMode === 'survival' && fall > 4 && feetBlock !== 'water' && !inWater) damagePlayer(Math.floor(fall - 3));
         airMaxY = projY;
       }
+      updateMovementSfx(dt, wantsMove, g, inWater, flying, shifting);
       wasGrounded = g;
     }
     if (gameMode === 'survival') {
-      const drain = sprinting ? 0.18 : inWater && wantsMove ? 0.09 : wantsMove ? 0.035 : 0.004;
+      const drain = shifting ? 0.18 : inWater && wantsMove ? 0.09 : wantsMove ? 0.035 : 0.004;
       hungerTick += drain * dt;
       if (hungerTick >= 1 && hunger > 0) {
         hungerTick = 0; hunger--; updateHunger();
@@ -5515,12 +6043,62 @@ function tickFrame(dt) {
   updateFurnace(dt);
 }
 
+function refreshTorchLights() {
+  const p = controls.getObject().position;
+  const nearest = _torchLightNearestTorches;
+  const nearestDist2 = _torchLightNearestDist2;
+  let found = 0;
+  for (let i = 0; i < TORCH_LIGHT_POOL_SIZE; i++) {
+    nearest[i] = null;
+    nearestDist2[i] = Infinity;
+  }
+  for (const torch of torchBlocks.values()) {
+    const dx = torch.x + 0.5 - p.x;
+    const dy = torch.y + 0.58 - p.y;
+    const dz = torch.z + 0.5 - p.z;
+    const dist2 = dx * dx + dy * dy + dz * dz;
+    if (dist2 > TORCH_LIGHT_SEARCH_RADIUS2) continue;
+    if (found >= TORCH_LIGHT_POOL_SIZE && dist2 >= nearestDist2[TORCH_LIGHT_POOL_SIZE - 1]) continue;
+    let insertAt = found < TORCH_LIGHT_POOL_SIZE ? found : TORCH_LIGHT_POOL_SIZE - 1;
+    while (insertAt > 0 && dist2 < nearestDist2[insertAt - 1]) {
+      if (insertAt < TORCH_LIGHT_POOL_SIZE) {
+        nearestDist2[insertAt] = nearestDist2[insertAt - 1];
+        nearest[insertAt] = nearest[insertAt - 1];
+      }
+      insertAt--;
+    }
+    nearestDist2[insertAt] = dist2;
+    nearest[insertAt] = torch;
+    if (found < TORCH_LIGHT_POOL_SIZE) found++;
+  }
+  for (let i = 0; i < TORCH_LIGHT_POOL_SIZE; i++) {
+    const light = torchLightPool[i];
+    const torch = nearest[i];
+    if (!torch) {
+      light.intensity = 0;
+      continue;
+    }
+    light.position.set(torch.x + 0.5, torch.y + 0.58, torch.z + 0.5);
+    light.intensity = TORCH_LIGHT_INTENSITY;
+  }
+  torchLightSelectionDirty = false;
+}
+
+function updateTorchLights(frameDt) {
+  torchLightSearchT -= frameDt;
+  if (!torchLightSelectionDirty && torchLightSearchT > 0) return;
+  torchLightSearchT = TORCH_LIGHT_SEARCH_INTERVAL;
+  refreshTorchLights();
+}
+
 function updateRenderFrame(frameDt) {
   fps += ((1 / Math.max(frameDt, 0.0001)) - fps) * 0.1;
   updateBossBar();
   updateViewmodel(frameDt);
+  updateTorchLights(frameDt);
   syncMultiplayer(frameDt);
   updatePrompt(frameDt);
+  updateHudStats();
   infoT += frameDt;
   if (infoT > 0.25) {
     infoT = 0;

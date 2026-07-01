@@ -37,6 +37,27 @@ export function normalizeTransform(value) {
   };
 }
 
+// A hex color like "#a1b2c3", or the fallback if malformed.
+export function normalizeColor(value, fallback) {
+  return typeof value === 'string' && /^#[0-9a-fA-F]{6}$/.test(value) ? value.toLowerCase() : fallback;
+}
+
+// Character customization: four hex colors. Always returns a complete object.
+export function normalizeAppearance(value) {
+  const a = value && typeof value === 'object' ? value : {};
+  return {
+    skin: normalizeColor(a.skin, '#f0c7a0'),
+    shirt: normalizeColor(a.shirt, '#66d9ef'),
+    pants: normalizeColor(a.pants, '#283342'),
+    hair: normalizeColor(a.hair, '#4a3320'),
+  };
+}
+
+// A short item id string, or null for an empty hand.
+export function normalizeItemId(value) {
+  return typeof value === 'string' && value ? value.slice(0, 40) : null;
+}
+
 // Returns a clean {x,y,z,type} or null if the coordinates are non-finite or out
 // of world bounds. type is null (air/removal) or a short string id.
 export function normalizeBlock(message) {

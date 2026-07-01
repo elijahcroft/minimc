@@ -2,3 +2,7 @@ node_modules/
 .playwright-mcp/
 *.log
 .claude/
+world.json
+world.json.tmp
+players.json
+players.json.tmp
