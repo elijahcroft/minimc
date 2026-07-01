@@ -3416,9 +3416,12 @@ addEventListener('mousedown', (e) => {
         setPrompt(`Copied ${itemName(id)}`, 0.9);
       }
     }
-  } else if (e.button === 2) { swing(); rightClick(); }
+  } else if (e.button === 2) { rmbDown = true; swing(); rightClick(); }
 });
-addEventListener('mouseup', (e) => { if (e.button === 0) { lmbDown = false; resetMine(); } });
+addEventListener('mouseup', (e) => {
+  if (e.button === 0) { lmbDown = false; resetMine(); }
+  else if (e.button === 2) { rmbDown = false; resetEat(); }
+});
 addEventListener('wheel', (e) => { if (controlsActive() && !invOpen && !furnaceOpen && !chestOpen) selectSlot((currentSlot + (e.deltaY > 0 ? 1 : 8)) % 9); });
 
 function nearestMob() {
@@ -3516,6 +3519,8 @@ function updateBullets(dt) {
 }
 // ---- hold-to-break mining + melee ----
 let lmbDown = false, mineKey = null, mineT = 0, meleeCD = 0;
+let rmbDown = false, eatT = 0, eatHeld = null;
+const EAT_HOLD_TIME = 1.2;
 let crackStage = -1;
 const mineBarEl = document.getElementById('mineBar');
 function setMineBar(p) {
@@ -3614,6 +3619,20 @@ function updateLeftAction(dt) {
   setMineBar(isFinite(bt) ? Math.min(1, mineT / bt) : 0);
   if (isFinite(bt) && mineT >= bt) { breakBlock(x, y, z); resetMine(); meleeCD = 0.05; }
 }
+function setEatBar(p) {
+  mineBarEl.style.display = p > 0 ? 'block' : 'none';
+  if (p > 0) mineBarEl.firstElementChild.style.width = (p * 100) + '%';
+}
+function resetEat() { eatT = 0; eatHeld = null; setEatBar(0); }
+function updateEatAction(dt) {
+  if (!rmbDown || !controlsActive() || dead || invOpen || furnaceOpen || chestOpen) { if (eatHeld) resetEat(); return; }
+  const held = hotbar[currentSlot];
+  if (!isFood(held)) { if (eatHeld) resetEat(); return; }
+  if (held !== eatHeld) { eatHeld = held; eatT = 0; }
+  eatT += dt;
+  setEatBar(Math.min(1, eatT / EAT_HOLD_TIME));
+  if (eatT >= EAT_HOLD_TIME) { eatT = 0; if (!eatFood(held)) resetEat(); }
+}
 function spawnWithEgg(eggId) {
   const egg = SPAWN_EGGS[eggId];
   if (!egg) return;
@@ -3655,7 +3674,7 @@ function rightClick() {
     }
   }
   const held = hotbar[currentSlot];
-  if (isFood(held)) { eatFood(held); return; }
+  if (isFood(held)) return;   // hold-to-eat progresses continuously in updateEatAction
   if (isSpawnEgg(held) && gameMode === 'creative') { spawnWithEgg(held); return; }
   if (!aimBlock || !isBlock(held)) return;
   if (gameMode === 'survival' && counts[currentSlot] <= 0) return;   // nothing left to place
@@ -3926,16 +3945,15 @@ function tryRestockSlot(i, preferredId) {
 
 function sortBackpack() {
   const packed = [];
-  for (let j = 0; j < STORE_N; j++) if (store[j]) packed.push({ id: store[j], n: storeCounts[j] });
+  for (let i = 0; i < 36; i++) { const s = pslot(i); if (s.id) packed.push({ id: s.id, n: s.n }); }
   packed.sort((a, b) => {
     const rank = (id) => isBlock(id) ? 0 : isTool(id) ? 1 : isFood(id) ? 2 : 3;
     return rank(a.id) - rank(b.id) || itemName(a.id).localeCompare(itemName(b.id)) || b.n - a.n;
   });
-  store.fill(null); storeCounts.fill(0);
-  packed.forEach((s, j) => { store[j] = s.id; storeCounts[j] = s.n; });
+  for (let i = 0; i < 36; i++) { const p = packed[i]; setPslot(i, p ? p.id : null, p ? p.n : 0); }
   renderOpen();
   markSaveDirty();
-  setPrompt('Backpack sorted', 1.1);
+  setPrompt('Inventory sorted', 1.1);
 }
 function sortChest() {
   if (!chestSlots) return;
@@ -4517,6 +4535,7 @@ function saveGame(force = false) {
   localStorage.setItem('mc_save_v1', JSON.stringify(data));
   lastSavedPlayer = { x: p.x, y: p.y, z: p.z };
   saveDirty = false;
+  if (!document.hidden) setPrompt('Saved', 0.8);
 }
 function scheduleSaveGame(force = false) {
   if (MULTIPLAYER) return;
@@ -4524,6 +4543,7 @@ function scheduleSaveGame(force = false) {
   else setTimeout(() => saveGame(force), 0);
 }
 addEventListener('beforeunload', () => saveGame(true));
+addEventListener('visibilitychange', () => { if (document.hidden) saveGame(true); });
 setInterval(() => scheduleSaveGame(false), 10000);
 
 ;(function loadGame() {
@@ -5509,6 +5529,7 @@ function tickFrame(dt) {
   updateNetFireballs(dt);
   updateBossTelegraphs(dt);
   updateLeftAction(dt);
+  updateEatAction(dt);
   updateAutoToggles(dt);
   updateWeather(dt);
   updateShootingStars(dt);
