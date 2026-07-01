@@ -72,6 +72,19 @@ function sendToId(playerId, message) {
   }
 }
 
+// per-connection token bucket for block:set — generous enough that holding the
+// mouse to build never throttles, but a tight spam loop drops silently.
+const BLOCK_RATE = 40, BLOCK_BURST = 40;
+function allowBlockOp(ws) {
+  const now = Date.now();
+  if (ws.blockTokens === undefined) { ws.blockTokens = BLOCK_BURST; ws.blockTokenTs = now; }
+  ws.blockTokens = Math.min(BLOCK_BURST, ws.blockTokens + (now - ws.blockTokenTs) / 1000 * BLOCK_RATE);
+  ws.blockTokenTs = now;
+  if (ws.blockTokens < 1) return false;
+  ws.blockTokens -= 1;
+  return true;
+}
+
 // ============================================================ server-authoritative mobs
 const PASSIVE = [
   { name: 'Pig', hp: 10, speed: 2.0 },
@@ -417,6 +430,7 @@ const messageHandlers = {
   },
 
   'block:set'(ws, message, player) {
+    if (!allowBlockOp(ws)) return;
     const block = normalizeBlock(message);
     if (!block) return;
     const k = `${block.x},${block.y},${block.z}`;

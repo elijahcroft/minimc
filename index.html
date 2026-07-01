@@ -750,6 +750,18 @@ const key = (x, y, z) => x + ',' + y + ',' + z;
 
 const materials = {};
 for (const t of TYPES) materials[t] = makeMaterial(t);
+// materials/textures above are cached per block type and shared by every chunk mesh of
+// that type for the app's lifetime — never dispose them on a single chunk's teardown.
+const sharedChunkMaterials = new Set(Object.values(materials));
+function disposeChunkMesh(m) {
+  m.geometry.dispose();
+  const mats = Array.isArray(m.material) ? m.material : [m.material];
+  for (const mat of mats) {
+    if (!mat || sharedChunkMaterials.has(mat)) continue;
+    if (mat.map) mat.map.dispose();
+    mat.dispose();
+  }
+}
 const itemPreviewCache = new Map();
 function itemPreviewStyle(id) {
   if (!id) return 'background:linear-gradient(180deg, rgba(28,33,27,0.94), rgba(14,16,14,0.98));';
@@ -874,7 +886,7 @@ function buildChunkMesh(cx, cz) {
   const owned = chunkBlocks.get(ck);
   // remove any existing group first
   const old = chunkMeshes.get(ck);
-  if (old) { scene.remove(old); for (const m of old.children) m.geometry.dispose(); chunkMeshes.delete(ck); }
+  if (old) { scene.remove(old); for (const m of old.children) disposeChunkMesh(m); chunkMeshes.delete(ck); }
   if (!owned || owned.size === 0) {
     perfStats.meshMs += performance.now() - started;
     return;
@@ -1410,7 +1422,7 @@ function unloadChunk(cx, cz) {
   const ck = chunkKey(cx, cz);
   if (!loaded.has(ck)) return;
   const grp = chunkMeshes.get(ck);
-  if (grp) { scene.remove(grp); for (const m of grp.children) m.geometry.dispose(); chunkMeshes.delete(ck); }
+  if (grp) { scene.remove(grp); for (const m of grp.children) disposeChunkMesh(m); chunkMeshes.delete(ck); }
   const owned = chunkBlocks.get(ck);
   if (owned) for (const k of owned) {
     world.delete(k);   // edits map untouched → regen restores player changes
@@ -3096,11 +3108,13 @@ function removeMob(mob) {
 }
 // ---- dragon fireballs ----
 const fireballs = [];
+const fireballGeo = new THREE.SphereGeometry(0.38, 8, 8);
+const fireballMat = new THREE.MeshBasicMaterial({ color: 0xff6a1a });
 function dragonBreathe(mob) {
   const head = mob.group.position;
   const pp = controls.getObject().position;
   const dir = new THREE.Vector3(pp.x - head.x, (pp.y - 0.6) - head.y, pp.z - head.z).normalize();
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.38, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff6a1a }));
+  const m = new THREE.Mesh(fireballGeo, fireballMat);
   m.position.copy(head).addScaledVector(dir, 2.6);
   scene.add(m);
   fireballs.push({ m, vel: dir.multiplyScalar(26), life: 3 });
@@ -3482,11 +3496,13 @@ function updateArrows(dt) {
 // ============================================================ bullets (gun)
 const bullets = [];
 const BULLET_SPEED = 80;
+const bulletGeo = new THREE.SphereGeometry(0.06, 6, 6);
+const bulletMat = new THREE.MeshBasicMaterial({ color: 0xffe066 });
 function shootBullet() {
   const dir = new THREE.Vector3();
   camera.getWorldDirection(dir);
   const start = controls.getObject().position.clone().addScaledVector(dir, 0.6);
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.06, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffe066 }));
+  const m = new THREE.Mesh(bulletGeo, bulletMat);
   m.position.copy(start);
   scene.add(m);
   bullets.push({ m, vel: dir.clone().multiplyScalar(BULLET_SPEED), life: 2 });
@@ -5013,13 +5029,15 @@ function flashNetMob(id) { const m = netMobs.get(id); if (m) { m.hitT = 0.18; se
 // ---- server-driven boss fireballs (visual only — the server already resolves
 // the hit and sends a 'hurt' message; this just animates what players see) ----
 const netFireballs = [];
+const netFireballGeo = new THREE.SphereGeometry(0.4, 8, 8);
+const netFireballMat = new THREE.MeshBasicMaterial({ color: 0xff5a1a });
 function spawnNetFireball(info) {
   const start = new THREE.Vector3(info.x, info.y, info.z);
   const target = new THREE.Vector3(info.tx, info.ty + 0.6, info.tz);
   const dir = target.clone().sub(start);
   const dist = dir.length();
   dir.normalize();
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff5a1a }));
+  const m = new THREE.Mesh(netFireballGeo, netFireballMat);
   m.position.copy(start);
   scene.add(m);
   netFireballs.push({ m, vel: dir.multiplyScalar(26), life: Math.max(0.4, dist / 26) });
