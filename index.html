@@ -5437,8 +5437,8 @@ function syncMultiplayer(dt) {
   }
 }
 
-function broadcastBlockEdit(x, y, z, type) {
-  sendRoom({ type: 'block:set', x, y, z, type });
+function broadcastBlockEdit(x, y, z, blockType) {
+  sendRoom({ type: 'block:set', x, y, z, type: blockType });
 }
 
 // ---- PvP + server-mob combat (active only in multiplayer; see Phase 4 wiring) ----
